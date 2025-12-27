@@ -29,9 +29,10 @@ export function ExportButton() {
     }, 100);
   };
 
-  // Calculate estimated page count
+  // Calculate estimated page count for 6x9 format
+  // Front matter: ~8 pages, each year: ~40 pages (24 synoptic + 12 auxiliary + 3 closing + 1 divider)
   const estimatedPages = exportType === 'full' 
-    ? 4 + (numYears * 39) // Title, TOC, Instructions, Quick Ref + 39 pages per year
+    ? 8 + (numYears * 42)
     : quickMonths * 2;
 
   return (
@@ -55,8 +56,9 @@ export function ExportButton() {
             <h2 className="ledger-title text-lg mb-4">Export Printable Ledger Book</h2>
             
             <p className="text-sm mb-4">
-              Generate a PDF of empty ledger pages formatted for printing. 
-              Print double-sided and bind for an authentic 19th-century accounting book.
+              Generate a print-ready PDF in <strong>6"×9" book format</strong>, 
+              perfect for Amazon KDP or print-on-demand services. 
+              The synoptic ledger spans facing pages like a traditional bound ledger.
             </p>
 
             <div className="space-y-4">
@@ -187,14 +189,17 @@ export function ExportButton() {
 
               {/* Print Tips */}
               <div className="bg-amber-50 p-3 border border-amber-700 text-xs">
-                <strong>Printing Tips:</strong>
+                <strong>Amazon KDP 6×9 Format:</strong>
                 <ul className="mt-1 ml-4 list-disc">
-                  <li>Use landscape orientation</li>
-                  <li>Print on Letter (8.5" × 11") paper</li>
-                  <li>Enable "Print on both sides" (flip on short edge)</li>
-                  <li>Use heavier paper (24-28 lb) for durability</li>
-                  <li>Bind with a 3-hole punch or saddle stitch</li>
+                  <li>Page size: 6" × 9" (standard trade paperback)</li>
+                  <li>Proper margins for book binding (gutter margins)</li>
+                  <li>Synoptic ledger spans two facing pages</li>
+                  <li>Even page count for proper printing</li>
+                  <li>Ready for Amazon KDP or similar print-on-demand</li>
                 </ul>
+                <p className="mt-2 italic">
+                  For home printing: Use 6×9 paper or scale to fit Letter/A4
+                </p>
               </div>
             </div>
 

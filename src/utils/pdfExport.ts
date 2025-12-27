@@ -1,32 +1,40 @@
 import { jsPDF } from 'jspdf';
 
-// Page dimensions - Letter size landscape (more width for ledger columns)
-const PAGE_WIDTH = 279.4; // 11 inches in mm
-const PAGE_HEIGHT = 215.9; // 8.5 inches in mm
-const MARGIN_LEFT = 10;
-const MARGIN_RIGHT = 10;
-const MARGIN_BOTTOM = 10;
-const USABLE_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT;
+// ============================================================================
+// AMAZON KDP 6x9 BOOK FORMAT
+// ============================================================================
+// Trim size: 6" x 9" (152.4mm x 228.6mm)
+// Safe margins for KDP:
+//   - Inside (gutter): 0.5" (12.7mm) minimum, we use 0.625" (15.875mm) for binding
+//   - Outside: 0.5" (12.7mm)
+//   - Top: 0.5" (12.7mm)  
+//   - Bottom: 0.625" (15.875mm) for page numbers
+
+const PAGE_WIDTH = 152.4;  // 6 inches in mm
+const PAGE_HEIGHT = 228.6; // 9 inches in mm
+
+// Margins
+const MARGIN_INSIDE = 16;   // Gutter margin (binding side)
+const MARGIN_OUTSIDE = 13;  // Outside edge
+const MARGIN_TOP = 13;
+const MARGIN_BOTTOM = 16;   // Extra space for page numbers
+
+// Calculated usable dimensions (for reference)
+// const USABLE_WIDTH = PAGE_WIDTH - MARGIN_INSIDE - MARGIN_OUTSIDE; // ~123mm
+// const USABLE_HEIGHT = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM;   // ~199mm
 
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-// Colors
-const SEPIA = { r: 139, g: 115, b: 85 };
-const PAPER = { r: 245, g: 240, b: 230 };
-const HEADER_DARK = { r: 180, g: 165, b: 140 };
-const HEADER_LIGHT = { r: 212, g: 197, b: 169 };
-const LINES = { r: 170, g: 155, b: 130 };
-const INK = { r: 26, g: 26, b: 46 };
-const RED_INK = { r: 139, g: 0, b: 0 };
-
-interface ColDef {
-  name: string;
-  subCols?: string[];
-  width: number;
-}
+// Colors (muted for print)
+const SEPIA = { r: 100, g: 80, b: 60 };
+const HEADER_BG = { r: 230, g: 225, b: 215 };
+const LIGHT_BG = { r: 245, g: 242, b: 235 };
+const LINES = { r: 180, g: 170, b: 155 };
+const INK = { r: 30, g: 30, b: 40 };
+const RED_INK = { r: 140, g: 20, b: 20 };
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -38,332 +46,623 @@ function setColor(doc: jsPDF, color: { r: number; g: number; b: number }, type: 
   else doc.setTextColor(color.r, color.g, color.b);
 }
 
-function drawDoubleLine(doc: jsPDF, x1: number, y1: number, x2: number, y2: number) {
-  doc.setLineWidth(0.4);
-  doc.line(x1, y1, x2, y2);
+function getMarginLeft(pageNum: number): number {
+  // For book binding: odd pages have gutter on left, even on right
+  return pageNum % 2 === 1 ? MARGIN_INSIDE : MARGIN_OUTSIDE;
+}
+
+function getMarginRight(pageNum: number): number {
+  return pageNum % 2 === 1 ? MARGIN_OUTSIDE : MARGIN_INSIDE;
+}
+
+function addPageNumber(doc: jsPDF, pageNum: number) {
+  doc.setFont('times', 'normal');
+  doc.setFontSize(9);
+  setColor(doc, INK, 'text');
+  doc.text(pageNum.toString(), PAGE_WIDTH / 2, PAGE_HEIGHT - 8, { align: 'center' });
+}
+
+function addRunningHeader(doc: jsPDF, text: string, pageNum: number) {
+  const marginL = getMarginLeft(pageNum);
+  const marginR = getMarginRight(pageNum);
+  
+  doc.setFont('times', 'italic');
+  doc.setFontSize(8);
+  setColor(doc, INK, 'text');
+  
+  if (pageNum % 2 === 0) {
+    // Even page: header on left
+    doc.text(text, marginL, MARGIN_TOP - 4);
+  } else {
+    // Odd page: header on right
+    doc.text(text, PAGE_WIDTH - marginR, MARGIN_TOP - 4, { align: 'right' });
+  }
+  
+  setColor(doc, LINES, 'draw');
   doc.setLineWidth(0.2);
-  doc.line(x1, y1 + 0.8, x2, y2 + 0.8);
+  doc.line(marginL, MARGIN_TOP - 2, PAGE_WIDTH - marginR, MARGIN_TOP - 2);
 }
 
 function drawDecorativeBorder(doc: jsPDF, x: number, y: number, w: number, h: number) {
   setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(1.5);
+  doc.setLineWidth(1);
   doc.rect(x, y, w, h);
   doc.setLineWidth(0.3);
   doc.rect(x + 2, y + 2, w - 4, h - 4);
-  doc.setLineWidth(0.1);
-  doc.rect(x + 3.5, y + 3.5, w - 7, h - 7);
 }
 
-function addPageNumber(doc: jsPDF, pageNum: number, totalPages?: number) {
+// ============================================================================
+// BLANK PAGES (for proper book pagination)
+// ============================================================================
+
+function addBlankPage(doc: jsPDF) {
+  doc.addPage();
+  // Intentionally blank
+}
+
+// ============================================================================
+// TITLE PAGE (Page 1 - Right side, no page number)
+// ============================================================================
+
+function addTitlePage(doc: jsPDF, startYear: number, numYears: number) {
+  const endYear = startYear + numYears - 1;
+  const centerX = PAGE_WIDTH / 2;
+  
+  // Decorative border
+  drawDecorativeBorder(doc, 15, 20, PAGE_WIDTH - 30, PAGE_HEIGHT - 40);
+  
+  // Ornamental line
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.5);
+  doc.line(40, 45, PAGE_WIDTH - 40, 45);
+  
+  // Main title
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(11);
+  doc.text("BAKER'S PATENT", centerX, 58, { align: 'center' });
+  
+  doc.setFontSize(18);
+  doc.text('LABOR-SAVING', centerX, 70, { align: 'center' });
+  
+  doc.setFontSize(24);
+  doc.text('SYNOPTIC', centerX, 85, { align: 'center' });
+  
+  doc.setFontSize(13);
+  doc.text('BOOK-KEEPING SYSTEM', centerX, 97, { align: 'center' });
+
+  // Decorative line
+  doc.setLineWidth(0.8);
+  doc.line(35, 105, PAGE_WIDTH - 35, 105);
+  doc.setLineWidth(0.2);
+  doc.line(45, 108, PAGE_WIDTH - 45, 108);
+
+  // Subtitle
+  doc.setFont('times', 'italic');
+  doc.setFontSize(9);
+  doc.text('A Combined Day-Book, Journal,', centerX, 120, { align: 'center' });
+  doc.text('Cash-Book, and Ledger', centerX, 127, { align: 'center' });
+  doc.text('Balanced Daily Without Re-Writing', centerX, 137, { align: 'center' });
+
+  // Year box
+  const yearBoxY = 150;
+  doc.setLineWidth(0.4);
+  setColor(doc, SEPIA, 'draw');
+  doc.rect(centerX - 30, yearBoxY, 60, 22);
+  doc.rect(centerX - 28, yearBoxY + 2, 56, 18);
+  
+  doc.setFont('times', 'bold');
+  setColor(doc, INK, 'text');
+  if (numYears > 1) {
+    doc.setFontSize(16);
+    doc.text(`${startYear}–${endYear}`, centerX, yearBoxY + 14, { align: 'center' });
+  } else {
+    doc.setFontSize(20);
+    doc.text(startYear.toString(), centerX, yearBoxY + 15, { align: 'center' });
+  }
+
+  // The Universal Rule
+  const ruleY = 182;
+  setColor(doc, LIGHT_BG, 'fill');
+  doc.rect(25, ruleY, PAGE_WIDTH - 50, 28, 'F');
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.3);
+  doc.rect(25, ruleY, PAGE_WIDTH - 50, 28);
+  
+  setColor(doc, RED_INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(8);
+  doc.text('THE UNIVERSAL RULE:', centerX, ruleY + 8, { align: 'center' });
+  
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(9);
+  doc.text('"Credit that which FURNISHES the value,', centerX, ruleY + 17, { align: 'center' });
+  doc.text('Debit that which RECEIVES the value."', centerX, ruleY + 24, { align: 'center' });
+
+  // Footer
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'normal');
+  doc.setFontSize(6);
+  doc.text('Based on the system at issue in', centerX, PAGE_HEIGHT - 28, { align: 'center' });
+  doc.text('Baker v. Selden, 101 U.S. 99 (1879)', centerX, PAGE_HEIGHT - 23, { align: 'center' });
+}
+
+// ============================================================================
+// COPYRIGHT PAGE (Page 2 - Left side, verso of title)
+// ============================================================================
+
+function addCopyrightPage(doc: jsPDF, startYear: number, numYears: number) {
+  doc.addPage();
+  
+  const marginL = getMarginLeft(2);
+  const endYear = startYear + numYears - 1;
+  const yearRange = numYears > 1 ? `${startYear}–${endYear}` : startYear.toString();
+  
+  let y = PAGE_HEIGHT - 80;
+  
   doc.setFont('times', 'normal');
   doc.setFontSize(8);
   setColor(doc, INK, 'text');
-  const text = totalPages ? `Page ${pageNum} of ${totalPages}` : `Page ${pageNum}`;
-  doc.text(text, PAGE_WIDTH / 2, PAGE_HEIGHT - 5, { align: 'center' });
+  
+  doc.text(`Baker's Labor-Saving Synoptic System`, marginL, y);
+  y += 5;
+  doc.text(`Ledger for ${yearRange}`, marginL, y);
+  y += 10;
+  
+  doc.setFont('times', 'italic');
+  doc.setFontSize(7);
+  doc.text('This ledger format is based on the accounting system', marginL, y);
+  y += 4;
+  doc.text('described in Baker v. Selden, 101 U.S. 99 (1879).', marginL, y);
+  y += 8;
+  
+  doc.text('The Supreme Court held that while the specific ruled', marginL, y);
+  y += 4;
+  doc.text('forms may be subject to copyright, the accounting art', marginL, y);
+  y += 4;
+  doc.text('itself cannot be monopolized.', marginL, y);
+  y += 10;
+  
+  doc.setFont('times', 'normal');
+  doc.text('Printed for personal and educational use.', marginL, y);
 }
 
-function addRunningHeader(doc: jsPDF, leftText: string, rightText: string) {
-  doc.setFont('times', 'italic');
-  doc.setFontSize(8);
+// ============================================================================
+// TABLE OF CONTENTS
+// ============================================================================
+
+function addTableOfContents(doc: jsPDF, startYear: number, numYears: number, pageNum: number): number {
+  doc.addPage();
+  
+  const marginL = getMarginLeft(pageNum);
+  const marginR = getMarginRight(pageNum);
+  
   setColor(doc, INK, 'text');
-  doc.text(leftText, MARGIN_LEFT, 7);
-  doc.text(rightText, PAGE_WIDTH - MARGIN_RIGHT, 7, { align: 'right' });
-  setColor(doc, LINES, 'draw');
-  doc.setLineWidth(0.2);
-  doc.line(MARGIN_LEFT, 9, PAGE_WIDTH - MARGIN_RIGHT, 9);
+  doc.setFont('times', 'bold');
+  doc.setFontSize(14);
+  doc.text('CONTENTS', PAGE_WIDTH / 2, MARGIN_TOP + 10, { align: 'center' });
+  
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.4);
+  doc.line(marginL + 20, MARGIN_TOP + 14, PAGE_WIDTH - marginR - 20, MARGIN_TOP + 14);
+  
+  let y = MARGIN_TOP + 28;
+  
+  // Calculate actual page numbers
+  let currentPage = 5; // After front matter
+  
+  const addTocEntry = (title: string, page: string, indent: number = 0, bold: boolean = false) => {
+    doc.setFont('times', bold ? 'bold' : 'normal');
+    doc.setFontSize(9);
+    
+    const textX = marginL + indent;
+    doc.text(title, textX, y);
+    
+    if (page) {
+      doc.text(page, PAGE_WIDTH - marginR, y, { align: 'right' });
+      
+      // Dots
+      const titleWidth = doc.getTextWidth(title);
+      const pageWidth = doc.getTextWidth(page);
+      let dotX = textX + titleWidth + 3;
+      const dotsEnd = PAGE_WIDTH - marginR - pageWidth - 3;
+      doc.setFontSize(8);
+      while (dotX < dotsEnd) {
+        doc.text('.', dotX, y);
+        dotX += 1.5;
+      }
+    }
+    y += 5;
+  };
+  
+  addTocEntry('How to Use This Ledger', '5', 0);
+  addTocEntry('Quick Reference Chart', '6', 0);
+  y += 3;
+  
+  currentPage = 7;
+  
+  for (let yearOffset = 0; yearOffset < numYears; yearOffset++) {
+    const year = startYear + yearOffset;
+    
+    if (numYears > 1) {
+      setColor(doc, SEPIA, 'text');
+      addTocEntry(`— ${year} —`, '', 0, true);
+      setColor(doc, INK, 'text');
+      currentPage++; // year divider
+    }
+    
+    addTocEntry('Synoptic Ledger', `${currentPage}–${currentPage + 23}`, 5);
+    currentPage += 24;
+    
+    addTocEntry('Purchase Day-Book', `${currentPage}–${currentPage + 1}`, 5);
+    currentPage += 2;
+    
+    addTocEntry('Sales Day-Book', `${currentPage}–${currentPage + 1}`, 5);
+    currentPage += 2;
+    
+    addTocEntry('Bills Receivable', `${currentPage}–${currentPage + 1}`, 5);
+    currentPage += 2;
+    
+    addTocEntry('Bills Payable', `${currentPage}–${currentPage + 1}`, 5);
+    currentPage += 2;
+    
+    addTocEntry('Time-Book & Payroll', `${currentPage}–${currentPage + 3}`, 5);
+    currentPage += 4;
+    
+    addTocEntry('Closing Worksheets', `${currentPage}–${currentPage + 2}`, 5);
+    currentPage += 3;
+    
+    y += 3;
+    
+    if (y > PAGE_HEIGHT - MARGIN_BOTTOM - 20 && yearOffset < numYears - 1) {
+      addPageNumber(doc, pageNum);
+      doc.addPage();
+      pageNum++;
+      y = MARGIN_TOP + 10;
+    }
+  }
+  
+  addPageNumber(doc, pageNum);
+  return pageNum;
 }
 
 // ============================================================================
 // INSTRUCTIONS PAGE
 // ============================================================================
 
-function addInstructionsPage(doc: jsPDF) {
+function addInstructionsPages(doc: jsPDF, pageNum: number): number {
   doc.addPage();
-  addRunningHeader(doc, "Baker's Synoptic System", 'Instructions');
+  addRunningHeader(doc, 'How to Use This Ledger', pageNum);
   
-  const leftCol = MARGIN_LEFT + 5;
-  let y = 20;
+  const marginL = getMarginLeft(pageNum);
+  let y = MARGIN_TOP + 8;
   
   setColor(doc, INK, 'text');
   doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.text('INSTRUCTIONS FOR THE USE OF THIS LEDGER', PAGE_WIDTH / 2, y, { align: 'center' });
+  doc.setFontSize(12);
+  doc.text('HOW TO USE THIS LEDGER', PAGE_WIDTH / 2, y, { align: 'center' });
   
   y += 10;
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
-  doc.line(50, y, PAGE_WIDTH - 50, y);
-  
-  y += 8;
   
   const sections = [
     {
-      title: 'I. THE PRINCIPLE OF THE SYNOPTIC',
-      content: [
-        'This system combines the Day-Book, Journal, Cash-Book, and Ledger into ONE book.',
-        'Every transaction is recorded but once, yet is instantly classified into its proper account.',
-        'The columnar arrangement ensures that each entry is self-proving—if Debits do not',
-        'equal Credits on each line, an error has been made and must be corrected immediately.',
+      title: 'THE SYNOPTIC PRINCIPLE',
+      lines: [
+        'This system combines Day-Book, Journal,',
+        'Cash-Book, and Ledger into ONE record.',
+        'Each transaction is entered once and',
+        'immediately classified into accounts.',
       ]
     },
     {
-      title: 'II. THE UNIVERSAL RULE',
-      content: [
-        'Credit that which FURNISHES the value; Debit that which RECEIVES the value.',
+      title: 'THE UNIVERSAL RULE',
+      lines: [
+        'Credit what FURNISHES value;',
+        'Debit what RECEIVES value.',
         '',
-        'Examples of application:',
-        '  • Cash Sale: Cash RECEIVES money (Dr.), Merchandise FURNISHES goods (Cr.)',
-        '  • Cash Purchase: Merchandise RECEIVES goods (Dr.), Cash FURNISHES money (Cr.)',
-        '  • Sale on Account: Customer RECEIVES goods (Dr. Persons-Sell), Mdse. FURNISHES (Cr.)',
-        '  • Purchase on Account: Mdse. RECEIVES (Dr.), Vendor FURNISHES credit (Cr. Persons-Buy)',
+        'Cash sale: Dr. Cash, Cr. Merchandise',
+        'Purchase on account: Dr. Merchandise,',
+        '    Cr. Persons (We Buy From)',
       ]
     },
     {
-      title: 'III. DAILY PROCEDURE',
-      content: [
-        '1. Enter the date in the first column.',
-        '2. Write a brief description of the transaction.',
-        '3. Enter the Ledger Folio (L.F.) reference if using subsidiary ledgers.',
-        '4. Place the amount in the appropriate Debit column(s).',
-        '5. Place the equal amount in the appropriate Credit column(s).',
-        '6. Verify the row balances before proceeding to the next entry.',
-        '7. At day\'s end, sum each column and verify: Total Debits = Total Credits.',
-        '8. Calculate Cash on Hand: Cash Dr. minus Cash Cr. = Cash balance.',
+      title: 'DAILY PROCEDURE',
+      lines: [
+        '1. Enter date and description',
+        '2. Place amounts in proper columns',
+        '3. Each row must balance: Dr. = Cr.',
+        '4. Sum columns at page bottom',
+        '5. Verify: Total Dr. = Total Cr.',
       ]
     },
     {
-      title: 'IV. THE COLUMNS EXPLAINED',
-      content: [
-        '• CASH — All money received (Dr.) and all money paid out (Cr.)',
-        '• PERSONS (We Sell To) — Customers who owe us; our Accounts Receivable',
-        '• PERSONS (We Buy From) — Vendors we owe; our Accounts Payable',
-        '• MERCHANDISE — Cost of goods bought (Dr.) and selling price of goods sold (Cr.)',
-        '• EXPENSE — All operating costs: rent, wages, supplies, etc. (Dr. only)',
-        '• BILLS RECEIVABLE — Promissory notes we hold from others',
-        '• BILLS PAYABLE — Promissory notes we have issued to others',
-        '• INTEREST & DISCOUNT — Interest earned (Cr.) or paid (Dr.); discounts taken/given',
-        '• SUNDRIES — Capital, Profit & Loss, and any accounts not elsewhere classified',
+      title: 'THE COLUMNS',
+      lines: [
+        'CASH — Money in and out',
+        'PERSONS (Sell To) — Receivables',
+        'PERSONS (Buy From) — Payables',
+        'MERCHANDISE — Goods traded',
+        'EXPENSE — Operating costs',
+        'BILLS REC. — Notes we hold',
+        'BILLS PAY. — Notes we owe',
+        'INTEREST — Interest earned/paid',
+        'SUNDRIES — Capital, P&L, misc.',
       ]
     },
   ];
   
+  doc.setFontSize(9);
   for (const section of sections) {
     doc.setFont('times', 'bold');
-    doc.setFontSize(10);
-    doc.text(section.title, leftCol, y);
+    doc.text(section.title, marginL, y);
     y += 5;
     
     doc.setFont('times', 'normal');
-    doc.setFontSize(9);
-    for (const line of section.content) {
+    doc.setFontSize(8);
+    for (const line of section.lines) {
       if (line === '') {
         y += 2;
         continue;
       }
-      doc.text(line, leftCol + 3, y);
+      doc.text(line, marginL + 3, y);
       y += 4;
     }
     y += 4;
+    doc.setFontSize(9);
   }
   
-  addPageNumber(doc, 3);
+  addPageNumber(doc, pageNum);
+  return pageNum;
 }
 
 // ============================================================================
 // QUICK REFERENCE PAGE
 // ============================================================================
 
-function addQuickReferencePage(doc: jsPDF) {
+function addQuickReferencePage(doc: jsPDF, pageNum: number): number {
   doc.addPage();
-  addRunningHeader(doc, "Baker's Synoptic System", 'Quick Reference');
+  addRunningHeader(doc, 'Quick Reference', pageNum);
+  
+  const marginL = getMarginLeft(pageNum);
+  const marginR = getMarginRight(pageNum);
+  let y = MARGIN_TOP + 8;
   
   setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.text('QUICK REFERENCE: COMMON TRANSACTIONS', PAGE_WIDTH / 2, 20, { align: 'center' });
-  
-  // Transaction reference table
-  const tableY = 30;
-  const cols = [
-    { name: 'Transaction', width: 55 },
-    { name: 'Debit', width: 50 },
-    { name: 'Credit', width: 50 },
-    { name: 'Example', width: 100 },
-  ];
-  
-  let x = MARGIN_LEFT;
-  const tableWidth = cols.reduce((sum, c) => sum + c.width, 0);
-  
-  // Header
-  setColor(doc, HEADER_DARK, 'fill');
-  doc.rect(x, tableY, tableWidth, 8, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
-  doc.rect(x, tableY, tableWidth, 8);
-  
-  doc.setFont('times', 'bold');
-  doc.setFontSize(9);
-  setColor(doc, INK, 'text');
-  for (const col of cols) {
-    doc.text(col.name, x + col.width / 2, tableY + 5.5, { align: 'center' });
-    x += col.width;
-  }
-  
-  // Rows
-  const transactions = [
-    ['Cash sale', 'Cash', 'Merchandise', 'Sold goods for $50 cash'],
-    ['Cash purchase', 'Merchandise', 'Cash', 'Bought goods for $30 cash'],
-    ['Sale on account', 'Persons (Sell To)', 'Merchandise', 'Sold $100 goods to J. Smith'],
-    ['Purchase on account', 'Merchandise', 'Persons (Buy From)', 'Bought $75 goods from ABC Co.'],
-    ['Collect receivable', 'Cash', 'Persons (Sell To)', 'J. Smith paid his $100 account'],
-    ['Pay vendor', 'Persons (Buy From)', 'Cash', 'Paid ABC Co. $75 owed'],
-    ['Pay expense', 'Expense', 'Cash', 'Paid $20 rent'],
-    ['Receive note', 'Bills Receivable', 'Persons (Sell To)', 'Took 30-day note from customer'],
-    ['Issue note', 'Persons (Buy From)', 'Bills Payable', 'Gave note to vendor'],
-    ['Collect note', 'Cash', 'Bills Receivable', 'Customer paid note at maturity'],
-    ['Pay note', 'Bills Payable', 'Cash', 'Paid our note at maturity'],
-    ['Discount earned', 'Expense (less)', 'Interest/Discount', 'Took 2% discount for early pay'],
-    ['Interest received', 'Cash', 'Interest/Discount', 'Received interest on note'],
-    ['Interest paid', 'Interest/Discount', 'Cash', 'Paid interest on our note'],
-    ['Owner investment', 'Cash', 'Sundries (Capital)', 'Owner invested $500'],
-    ['Owner withdrawal', 'Sundries (Drawing)', 'Cash', 'Owner withdrew $50'],
-  ];
-  
-  let rowY = tableY + 8;
-  doc.setFont('times', 'normal');
-  doc.setFontSize(8);
-  
-  for (let i = 0; i < transactions.length; i++) {
-    const row = transactions[i];
-    x = MARGIN_LEFT;
-    
-    // Alternating row colors
-    if (i % 2 === 0) {
-      setColor(doc, PAPER, 'fill');
-      doc.rect(x, rowY, tableWidth, 6, 'F');
-    }
-    
-    setColor(doc, LINES, 'draw');
-    doc.setLineWidth(0.1);
-    doc.rect(x, rowY, tableWidth, 6);
-    
-    setColor(doc, INK, 'text');
-    for (let j = 0; j < cols.length; j++) {
-      doc.text(row[j], x + 2, rowY + 4);
-      setColor(doc, LINES, 'draw');
-      doc.line(x, rowY, x, rowY + 6);
-      x += cols[j].width;
-    }
-    doc.line(x, rowY, x, rowY + 6);
-    
-    rowY += 6;
-  }
-  
-  // Closing entries section
-  rowY += 10;
-  setColor(doc, RED_INK, 'text');
   doc.setFont('times', 'bold');
   doc.setFontSize(11);
-  doc.text('CLOSING ENTRIES (Made in Red Ink)', MARGIN_LEFT, rowY);
+  doc.text('QUICK REFERENCE', PAGE_WIDTH / 2, y, { align: 'center' });
   
-  rowY += 6;
-  doc.setFont('times', 'normal');
-  doc.setFontSize(9);
-  setColor(doc, INK, 'text');
+  y += 8;
   
-  const closingNotes = [
-    '1. Close Expense to Profit & Loss: Cr. Expense (to zero it), Dr. Sundries (P&L)',
-    '2. Close Interest/Discount: Transfer net balance to Sundries (P&L)',
-    '3. Inventory Adjustment: Compare physical count to Merchandise balance',
-    '4. Close P&L to Capital: Dr. or Cr. Sundries (P&L), opposite to Sundries (Capital)',
+  // Transaction reference
+  const transactions = [
+    ['Cash sale', 'Cash', 'Merchandise'],
+    ['Cash purchase', 'Merchandise', 'Cash'],
+    ['Sale on account', 'Persons (Sell)', 'Merchandise'],
+    ['Purchase on acct.', 'Merchandise', 'Persons (Buy)'],
+    ['Collect receivable', 'Cash', 'Persons (Sell)'],
+    ['Pay vendor', 'Persons (Buy)', 'Cash'],
+    ['Pay expense', 'Expense', 'Cash'],
+    ['Receive note', 'Bills Rec.', 'Persons (Sell)'],
+    ['Pay note', 'Bills Pay.', 'Cash'],
+    ['Interest received', 'Cash', 'Interest'],
+    ['Interest paid', 'Interest', 'Cash'],
+    ['Owner invest', 'Cash', 'Sundries'],
+    ['Owner withdraw', 'Sundries', 'Cash'],
   ];
   
-  for (const note of closingNotes) {
-    doc.text(note, MARGIN_LEFT + 5, rowY);
-    rowY += 5;
+  // Header
+  const col1 = marginL;
+  const col2 = marginL + 42;
+  const col3 = marginL + 75;
+  
+  setColor(doc, HEADER_BG, 'fill');
+  doc.rect(marginL, y, PAGE_WIDTH - marginL - marginR, 5, 'F');
+  
+  doc.setFont('times', 'bold');
+  doc.setFontSize(7);
+  setColor(doc, INK, 'text');
+  doc.text('Transaction', col1 + 1, y + 3.5);
+  doc.text('Debit', col2 + 1, y + 3.5);
+  doc.text('Credit', col3 + 1, y + 3.5);
+  
+  y += 5;
+  
+  doc.setFont('times', 'normal');
+  doc.setFontSize(7);
+  
+  for (let i = 0; i < transactions.length; i++) {
+    const t = transactions[i];
+    if (i % 2 === 0) {
+      setColor(doc, LIGHT_BG, 'fill');
+      doc.rect(marginL, y, PAGE_WIDTH - marginL - marginR, 4.5, 'F');
+    }
+    setColor(doc, INK, 'text');
+    doc.text(t[0], col1 + 1, y + 3.2);
+    doc.text(t[1], col2 + 1, y + 3.2);
+    doc.text(t[2], col3 + 1, y + 3.2);
+    y += 4.5;
   }
   
-  addPageNumber(doc, 4);
+  // Closing entries
+  y += 6;
+  setColor(doc, RED_INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(8);
+  doc.text('CLOSING (Red Ink)', marginL, y);
+  
+  y += 5;
+  doc.setFont('times', 'normal');
+  doc.setFontSize(7);
+  setColor(doc, INK, 'text');
+  
+  const closings = [
+    '• Close Expense to P&L',
+    '• Close Interest to P&L',
+    '• Adjust Inventory',
+    '• Close P&L to Capital',
+  ];
+  
+  for (const c of closings) {
+    doc.text(c, marginL + 2, y);
+    y += 4;
+  }
+  
+  addPageNumber(doc, pageNum);
+  return pageNum;
 }
 
 // ============================================================================
-// SYNOPTIC LEDGER PAGE
+// YEAR DIVIDER PAGE
 // ============================================================================
 
-function addSynopticLedgerPage(doc: jsPDF, month: string, year: number, pageNum: number, pageOf: string) {
+function addYearDivider(doc: jsPDF, year: number, pageNum: number): number {
   doc.addPage();
   
-  // Running header
-  addRunningHeader(doc, `${month} ${year}`, `Synoptic Ledger — ${pageOf}`);
+  const centerX = PAGE_WIDTH / 2;
+  const centerY = PAGE_HEIGHT / 2;
   
-  const startY = 14;
-  const headerHeight1 = 7;  // Main header row
-  const headerHeight2 = 5;  // Sub-header row (Dr/Cr)
-  const rowHeight = 5.5;
+  drawDecorativeBorder(doc, 25, 50, PAGE_WIDTH - 50, PAGE_HEIGHT - 100);
   
-  // Define columns to fit page width exactly
-  // Total needs to be ~259mm (usable width)
-  const columns: ColDef[] = [
-    { name: 'DATE', width: 14 },
-    { name: 'DESCRIPTION OF TRANSACTION', width: 42 },
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(48);
+  doc.text(year.toString(), centerX, centerY - 5, { align: 'center' });
+  
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.8);
+  doc.line(centerX - 35, centerY + 8, centerX + 35, centerY + 8);
+  
+  doc.setFont('times', 'italic');
+  doc.setFontSize(10);
+  setColor(doc, INK, 'text');
+  doc.text('Synoptic Ledger', centerX, centerY + 22, { align: 'center' });
+  
+  addPageNumber(doc, pageNum);
+  return pageNum;
+}
+
+// ============================================================================
+// SYNOPTIC LEDGER - TWO-PAGE SPREAD
+// The ledger spans across LEFT page (even) and RIGHT page (odd)
+// Left page: Date, Description, L.F., Cash, Persons columns
+// Right page: Merchandise, Expense, Bills, Interest, Sundries, Totals
+// ============================================================================
+
+interface LedgerCol {
+  name: string;
+  subCols?: string[];
+  width: number;
+}
+
+function addSynopticSpread(doc: jsPDF, month: string, year: number, pageNum: number, spreadNum: number): number {
+  // LEFT PAGE (even number)
+  doc.addPage();
+  const leftPageNum = pageNum;
+  addRunningHeader(doc, `${month} ${year}`, leftPageNum);
+  
+  const leftMarginL = getMarginLeft(leftPageNum);
+  const leftMarginR = getMarginRight(leftPageNum);
+  
+  // Left page columns
+  const leftCols: LedgerCol[] = [
+    { name: 'DATE', width: 12 },
+    { name: 'DESCRIPTION', width: 35 },
     { name: 'L.F.', width: 8 },
     { name: 'CASH', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'PERSONS\n(We Sell To)', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'PERSONS\n(We Buy From)', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'MERCHAN-\nDISE', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'EXPENSE', subCols: ['Dr.'], width: 13 },
-    { name: 'BILLS\nRECEIVABLE', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'BILLS\nPAYABLE', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'INTEREST &\nDISCOUNT', subCols: ['Dr.', 'Cr.'], width: 22 },
-    { name: 'SUNDRIES', subCols: ['Dr.', 'Cr.'], width: 26 },
+    { name: 'PERSONS\n(Sell To)', subCols: ['Dr.', 'Cr.'], width: 22 },
+    { name: 'PERSONS\n(Buy From)', subCols: ['Dr.', 'Cr.'], width: 22 },
   ];
   
-  const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
-  const startX = MARGIN_LEFT + (USABLE_WIDTH - totalWidth) / 2; // Center the grid
+  drawLedgerPage(doc, leftCols, leftMarginL, leftMarginR, leftPageNum, true, spreadNum);
+  addPageNumber(doc, leftPageNum);
   
-  // Draw main headers
+  // RIGHT PAGE (odd number)
+  doc.addPage();
+  const rightPageNum = pageNum + 1;
+  addRunningHeader(doc, `${month} ${year}`, rightPageNum);
+  
+  const rightMarginL = getMarginLeft(rightPageNum);
+  const rightMarginR = getMarginRight(rightPageNum);
+  
+  // Right page columns
+  const rightCols: LedgerCol[] = [
+    { name: 'MERCHAN-\nDISE', subCols: ['Dr.', 'Cr.'], width: 20 },
+    { name: 'EXP.', subCols: ['Dr.'], width: 12 },
+    { name: 'BILLS\nREC.', subCols: ['Dr.', 'Cr.'], width: 18 },
+    { name: 'BILLS\nPAY.', subCols: ['Dr.', 'Cr.'], width: 18 },
+    { name: 'INT. &\nDISC.', subCols: ['Dr.', 'Cr.'], width: 18 },
+    { name: 'SUNDRIES', subCols: ['Dr.', 'Cr.'], width: 22 },
+    { name: 'ROW\nTOTAL', subCols: ['Dr.', 'Cr.'], width: 16 },
+  ];
+  
+  drawLedgerPage(doc, rightCols, rightMarginL, rightMarginR, rightPageNum, false, spreadNum);
+  addPageNumber(doc, rightPageNum);
+  
+  return rightPageNum;
+}
+
+function drawLedgerPage(
+  doc: jsPDF, 
+  columns: LedgerCol[], 
+  marginL: number, 
+  _marginR: number, 
+  _pageNum: number,
+  isLeftPage: boolean,
+  spreadNum: number
+) {
+  const startY = MARGIN_TOP + 5;
+  const headerHeight = 10;
+  const subHeaderHeight = 5;
+  const rowHeight = 5;
+  
+  const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
+  const startX = marginL;
+  
+  // Draw header row
   let x = startX;
   setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
+  doc.setLineWidth(0.2);
   
   for (const col of columns) {
     const hasSubCols = col.subCols && col.subCols.length > 0;
-    const headerH = hasSubCols ? headerHeight1 : headerHeight1 + headerHeight2;
     
-    // Header background
-    setColor(doc, hasSubCols ? HEADER_DARK : HEADER_LIGHT, 'fill');
-    doc.rect(x, startY, col.width, headerH, 'F');
+    // Main header cell
+    setColor(doc, HEADER_BG, 'fill');
+    doc.rect(x, startY, col.width, hasSubCols ? headerHeight - subHeaderHeight : headerHeight, 'F');
     setColor(doc, SEPIA, 'draw');
-    doc.rect(x, startY, col.width, headerH);
+    doc.rect(x, startY, col.width, hasSubCols ? headerHeight - subHeaderHeight : headerHeight);
     
     // Header text
     setColor(doc, INK, 'text');
     doc.setFont('times', 'bold');
-    doc.setFontSize(6);
+    doc.setFontSize(5.5);
     
     const lines = col.name.split('\n');
-    if (lines.length > 1) {
-      doc.text(lines[0], x + col.width / 2, startY + 3, { align: 'center' });
-      doc.text(lines[1], x + col.width / 2, startY + 6, { align: 'center' });
+    if (lines.length > 1 && hasSubCols) {
+      doc.text(lines[0], x + col.width / 2, startY + 2.2, { align: 'center' });
+      doc.text(lines[1], x + col.width / 2, startY + 4.5, { align: 'center' });
+    } else if (lines.length > 1) {
+      doc.text(lines[0], x + col.width / 2, startY + 3.5, { align: 'center' });
+      doc.text(lines[1], x + col.width / 2, startY + 6.5, { align: 'center' });
     } else {
-      doc.text(col.name, x + col.width / 2, startY + (hasSubCols ? 4 : 7), { align: 'center' });
+      const textY = hasSubCols ? startY + 3 : startY + 5.5;
+      doc.text(col.name, x + col.width / 2, textY, { align: 'center' });
     }
     
-    // Sub-headers (Dr./Cr.)
+    // Sub-headers
     if (hasSubCols && col.subCols) {
-      const subCols = col.subCols;
-      const subWidth = col.width / subCols.length;
-      for (let i = 0; i < subCols.length; i++) {
+      const subWidth = col.width / col.subCols.length;
+      for (let i = 0; i < col.subCols.length; i++) {
         const subX = x + i * subWidth;
-        setColor(doc, HEADER_LIGHT, 'fill');
-        doc.rect(subX, startY + headerHeight1, subWidth, headerHeight2, 'F');
+        setColor(doc, LIGHT_BG, 'fill');
+        doc.rect(subX, startY + headerHeight - subHeaderHeight, subWidth, subHeaderHeight, 'F');
         setColor(doc, SEPIA, 'draw');
-        doc.rect(subX, startY + headerHeight1, subWidth, headerHeight2);
+        doc.rect(subX, startY + headerHeight - subHeaderHeight, subWidth, subHeaderHeight);
         
         setColor(doc, INK, 'text');
         doc.setFontSize(5);
-        doc.text(subCols[i], subX + subWidth / 2, startY + headerHeight1 + 3.5, { align: 'center' });
+        doc.text(col.subCols[i], subX + subWidth / 2, startY + headerHeight - 1.5, { align: 'center' });
       }
     }
     
@@ -371,10 +670,10 @@ function addSynopticLedgerPage(doc: jsPDF, month: string, year: number, pageNum:
   }
   
   // Calculate rows
-  const dataStartY = startY + headerHeight1 + headerHeight2;
-  const totalsRowHeight = 7;
-  const cashProofHeight = 6;
-  const availableHeight = PAGE_HEIGHT - dataStartY - MARGIN_BOTTOM - totalsRowHeight - cashProofHeight - 5;
+  const dataStartY = startY + headerHeight;
+  const totalsHeight = 6;
+  const footerSpace = isLeftPage ? 8 : 12; // Extra space on right for cash proof
+  const availableHeight = PAGE_HEIGHT - dataStartY - MARGIN_BOTTOM - totalsHeight - footerSpace;
   const numRows = Math.floor(availableHeight / rowHeight);
   
   // Draw data rows
@@ -386,742 +685,491 @@ function addSynopticLedgerPage(doc: jsPDF, month: string, year: number, pageNum:
     doc.line(startX, y, startX + totalWidth, y);
   }
   
-  // Draw vertical lines
+  // Vertical lines
   x = startX;
   const dataEndY = dataStartY + numRows * rowHeight;
   
   for (const col of columns) {
-    doc.setLineWidth(0.2);
+    doc.setLineWidth(0.15);
     doc.line(x, dataStartY, x, dataEndY);
     
     // Sub-column dividers
-    const subColsArr = col.subCols || [];
-    if (subColsArr.length > 1) {
+    if (col.subCols && col.subCols.length > 1) {
       doc.setLineWidth(0.05);
-      const subWidth = col.width / subColsArr.length;
-      for (let i = 1; i < subColsArr.length; i++) {
+      const subWidth = col.width / col.subCols.length;
+      for (let i = 1; i < col.subCols.length; i++) {
         doc.line(x + i * subWidth, dataStartY, x + i * subWidth, dataEndY);
       }
     }
     x += col.width;
   }
-  doc.setLineWidth(0.2);
+  doc.setLineWidth(0.15);
   doc.line(x, dataStartY, x, dataEndY);
   
   // Totals row
   const totalsY = dataEndY;
-  setColor(doc, HEADER_LIGHT, 'fill');
-  doc.rect(startX, totalsY, totalWidth, totalsRowHeight, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.4);
-  doc.line(startX, totalsY, startX + totalWidth, totalsY);
-  doc.setLineWidth(0.3);
-  doc.rect(startX, totalsY, totalWidth, totalsRowHeight);
-  
-  // "PAGE TOTALS" label
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(7);
-  doc.text('PAGE TOTALS', startX + columns[0].width + columns[1].width / 2, totalsY + 4.5, { align: 'center' });
-  
-  // Vertical lines in totals
-  x = startX;
-  doc.setLineWidth(0.2);
-  for (const col of columns) {
-    doc.line(x, totalsY, x, totalsY + totalsRowHeight);
-    const totalsSubCols = col.subCols || [];
-    if (totalsSubCols.length > 1) {
-      doc.setLineWidth(0.1);
-      const subWidth = col.width / totalsSubCols.length;
-      for (let i = 1; i < totalsSubCols.length; i++) {
-        doc.line(x + i * subWidth, totalsY, x + i * subWidth, totalsY + totalsRowHeight);
-      }
-      doc.setLineWidth(0.2);
-    }
-    x += col.width;
-  }
-  doc.line(x, totalsY, x, totalsY + totalsRowHeight);
-  
-  // Double line at bottom of totals
-  drawDoubleLine(doc, startX, totalsY + totalsRowHeight, startX + totalWidth, totalsY + totalsRowHeight);
-  
-  // Cash proof row
-  const cashProofY = totalsY + totalsRowHeight + 2;
-  doc.setFont('times', 'italic');
-  doc.setFontSize(8);
-  setColor(doc, INK, 'text');
-  doc.text('Cash on Hand (Cash Dr. − Cash Cr.): $_____________', startX, cashProofY + 4);
-  doc.text('Carried Forward to next page: $_____________', startX + totalWidth - 60, cashProofY + 4, { align: 'right' });
-  
-  addPageNumber(doc, pageNum);
-}
-
-// ============================================================================
-// AUXILIARY BOOK: PURCHASE DAY-BOOK
-// ============================================================================
-
-function addPurchaseDayBook(doc: jsPDF, year: number, pageNum: number, continued: boolean = false) {
-  doc.addPage();
-  addRunningHeader(doc, `Purchase Day-Book — ${year}`, continued ? 'Continued' : 'Page ' + pageNum);
-  
-  const startY = 18;
-  const headerHeight = 8;
-  const rowHeight = 6;
-  
-  // Instruction text
-  if (!continued) {
-    doc.setFont('times', 'italic');
-    doc.setFontSize(8);
-    setColor(doc, INK, 'text');
-    doc.text('Record all purchases here. Summarize daily totals to the Synoptic: Dr. Merchandise, Cr. Persons (We Buy From)', MARGIN_LEFT, startY - 4);
-  }
-  
-  const columns: ColDef[] = [
-    { name: 'DATE', width: 18 },
-    { name: 'INVOICE NO.', width: 22 },
-    { name: 'VENDOR NAME', width: 55 },
-    { name: 'DESCRIPTION OF GOODS', width: 80 },
-    { name: 'AMOUNT', width: 25 },
-    { name: 'POSTED', width: 15 },
-    { name: 'REMARKS', width: 40 },
-  ];
-  
-  drawAuxiliaryTable(doc, columns, startY, headerHeight, rowHeight, pageNum);
-}
-
-// ============================================================================
-// AUXILIARY BOOK: SALES DAY-BOOK
-// ============================================================================
-
-function addSalesDayBook(doc: jsPDF, year: number, pageNum: number, continued: boolean = false) {
-  doc.addPage();
-  addRunningHeader(doc, `Sales Day-Book — ${year}`, continued ? 'Continued' : 'Page ' + pageNum);
-  
-  const startY = 18;
-  const headerHeight = 8;
-  const rowHeight = 6;
-  
-  if (!continued) {
-    doc.setFont('times', 'italic');
-    doc.setFontSize(8);
-    setColor(doc, INK, 'text');
-    doc.text('Record all sales here. Summarize daily totals to the Synoptic: Dr. Persons (We Sell To), Cr. Merchandise', MARGIN_LEFT, startY - 4);
-  }
-  
-  const columns: ColDef[] = [
-    { name: 'DATE', width: 18 },
-    { name: 'INVOICE NO.', width: 22 },
-    { name: 'CUSTOMER NAME', width: 55 },
-    { name: 'DESCRIPTION OF GOODS', width: 80 },
-    { name: 'AMOUNT', width: 25 },
-    { name: 'POSTED', width: 15 },
-    { name: 'REMARKS', width: 40 },
-  ];
-  
-  drawAuxiliaryTable(doc, columns, startY, headerHeight, rowHeight, pageNum);
-}
-
-// ============================================================================
-// AUXILIARY BOOK: BILLS RECEIVABLE
-// ============================================================================
-
-function addBillsReceivable(doc: jsPDF, year: number, pageNum: number, continued: boolean = false) {
-  doc.addPage();
-  addRunningHeader(doc, `Bills Receivable Register — ${year}`, continued ? 'Continued' : 'Page ' + pageNum);
-  
-  const startY = 18;
-  const headerHeight = 10;
-  const rowHeight = 6;
-  
-  if (!continued) {
-    doc.setFont('times', 'italic');
-    doc.setFontSize(8);
-    setColor(doc, INK, 'text');
-    doc.text('Record promissory notes received. When collected: Dr. Cash, Cr. Bills Receivable in Synoptic.', MARGIN_LEFT, startY - 4);
-  }
-  
-  const columns: ColDef[] = [
-    { name: 'DATE\nRECEIVED', width: 18 },
-    { name: 'FROM WHOM', width: 45 },
-    { name: 'FOR WHAT', width: 50 },
-    { name: 'AMOUNT', width: 22 },
-    { name: 'TIME\n(DAYS)', width: 14 },
-    { name: 'DUE\nDATE', width: 18 },
-    { name: 'DATE\nCOLLECTED', width: 18 },
-    { name: 'HOW\nDISPOSED', width: 35 },
-    { name: 'REMARKS', width: 35 },
-  ];
-  
-  drawAuxiliaryTable(doc, columns, startY, headerHeight, rowHeight, pageNum);
-}
-
-// ============================================================================
-// AUXILIARY BOOK: BILLS PAYABLE
-// ============================================================================
-
-function addBillsPayable(doc: jsPDF, year: number, pageNum: number, continued: boolean = false) {
-  doc.addPage();
-  addRunningHeader(doc, `Bills Payable Register — ${year}`, continued ? 'Continued' : 'Page ' + pageNum);
-  
-  const startY = 18;
-  const headerHeight = 10;
-  const rowHeight = 6;
-  
-  if (!continued) {
-    doc.setFont('times', 'italic');
-    doc.setFontSize(8);
-    setColor(doc, INK, 'text');
-    doc.text('Record promissory notes issued. When paid: Dr. Bills Payable, Cr. Cash in Synoptic.', MARGIN_LEFT, startY - 4);
-  }
-  
-  const columns: ColDef[] = [
-    { name: 'DATE\nISSUED', width: 18 },
-    { name: 'TO WHOM', width: 45 },
-    { name: 'FOR WHAT', width: 50 },
-    { name: 'AMOUNT', width: 22 },
-    { name: 'TIME\n(DAYS)', width: 14 },
-    { name: 'DUE\nDATE', width: 18 },
-    { name: 'DATE\nPAID', width: 18 },
-    { name: 'HOW\nPAID', width: 35 },
-    { name: 'REMARKS', width: 35 },
-  ];
-  
-  drawAuxiliaryTable(doc, columns, startY, headerHeight, rowHeight, pageNum);
-}
-
-// ============================================================================
-// AUXILIARY BOOK: TIME-BOOK & PAYROLL
-// ============================================================================
-
-function addPayrollPage(doc: jsPDF, year: number, pageNum: number) {
-  doc.addPage();
-  addRunningHeader(doc, `Time-Book & Pay-Roll — ${year}`, 'Page ' + pageNum);
-  
-  const startY = 20;
-  
-  // Pay period line
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  setColor(doc, INK, 'text');
-  doc.text('Pay Period: From _________________ To _________________', MARGIN_LEFT, startY - 5);
-  doc.text('Pay Date: _________________', PAGE_WIDTH - MARGIN_RIGHT - 50, startY - 5);
-  
-  const headerHeight = 10;
-  const rowHeight = 6;
-  
-  const columns: ColDef[] = [
-    { name: 'NO.', width: 10 },
-    { name: 'EMPLOYEE NAME', width: 50 },
-    { name: 'POSITION/\nOCCUPATION', width: 35 },
-    { name: 'DAYS\nWORKED', width: 16 },
-    { name: 'RATE\nPER DAY', width: 18 },
-    { name: 'GROSS\nEARNED', width: 22 },
-    { name: 'DEDUC-\nTIONS', width: 20 },
-    { name: 'NET\nPAY', width: 22 },
-    { name: 'RECEIPT/\nSIGNATURE', width: 45 },
-    { name: 'REMARKS', width: 20 },
-  ];
-  
-  const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
-  const startX = MARGIN_LEFT + (USABLE_WIDTH - totalWidth) / 2;
-  
-  // Draw headers
-  let x = startX;
+  setColor(doc, HEADER_BG, 'fill');
+  doc.rect(startX, totalsY, totalWidth, totalsHeight, 'F');
   setColor(doc, SEPIA, 'draw');
   doc.setLineWidth(0.3);
+  doc.rect(startX, totalsY, totalWidth, totalsHeight);
   
-  for (const col of columns) {
-    setColor(doc, HEADER_LIGHT, 'fill');
-    doc.rect(x, startY, col.width, headerHeight, 'F');
-    setColor(doc, SEPIA, 'draw');
-    doc.rect(x, startY, col.width, headerHeight);
-    
+  // Totals label
+  if (isLeftPage) {
     setColor(doc, INK, 'text');
     doc.setFont('times', 'bold');
     doc.setFontSize(6);
-    
-    const lines = col.name.split('\n');
-    if (lines.length > 1) {
-      doc.text(lines[0], x + col.width / 2, startY + 4, { align: 'center' });
-      doc.text(lines[1], x + col.width / 2, startY + 7.5, { align: 'center' });
-    } else {
-      doc.text(col.name, x + col.width / 2, startY + 6, { align: 'center' });
-    }
-    x += col.width;
+    doc.text('TOTALS', startX + columns[0].width + columns[1].width / 2, totalsY + 4, { align: 'center' });
   }
-  
-  // Calculate rows
-  const dataStartY = startY + headerHeight;
-  const totalsRowHeight = 8;
-  const notesHeight = 20;
-  const availableHeight = PAGE_HEIGHT - dataStartY - MARGIN_BOTTOM - totalsRowHeight - notesHeight;
-  const numRows = Math.floor(availableHeight / rowHeight);
-  
-  // Draw rows with row numbers
-  setColor(doc, LINES, 'draw');
-  doc.setLineWidth(0.1);
-  
-  for (let row = 0; row <= numRows; row++) {
-    const y = dataStartY + row * rowHeight;
-    doc.line(startX, y, startX + totalWidth, y);
-    
-    // Row number
-    if (row < numRows) {
-      doc.setFont('times', 'normal');
-      doc.setFontSize(6);
-      setColor(doc, INK, 'text');
-      doc.text((row + 1).toString(), startX + columns[0].width / 2, y + 4, { align: 'center' });
-    }
-  }
-  
-  // Vertical lines
-  x = startX;
-  const dataEndY = dataStartY + numRows * rowHeight;
-  doc.setLineWidth(0.15);
-  for (const col of columns) {
-    doc.line(x, dataStartY, x, dataEndY);
-    x += col.width;
-  }
-  doc.line(x, dataStartY, x, dataEndY);
-  
-  // Totals row
-  const totalsY = dataEndY;
-  setColor(doc, HEADER_LIGHT, 'fill');
-  doc.rect(startX, totalsY, totalWidth, totalsRowHeight, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
-  doc.rect(startX, totalsY, totalWidth, totalsRowHeight);
-  
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(8);
-  doc.text('TOTALS', startX + columns[0].width + columns[1].width / 2, totalsY + 5.5, { align: 'center' });
   
   // Vertical lines in totals
   x = startX;
+  doc.setLineWidth(0.15);
   for (const col of columns) {
-    doc.line(x, totalsY, x, totalsY + totalsRowHeight);
+    doc.line(x, totalsY, x, totalsY + totalsHeight);
+    if (col.subCols && col.subCols.length > 1) {
+      const subWidth = col.width / col.subCols.length;
+      for (let i = 1; i < col.subCols.length; i++) {
+        doc.line(x + i * subWidth, totalsY, x + i * subWidth, totalsY + totalsHeight);
+      }
+    }
     x += col.width;
   }
-  doc.line(x, totalsY, x, totalsY + totalsRowHeight);
+  doc.line(x, totalsY, x, totalsY + totalsHeight);
   
-  // Synoptic entry note
-  const noteY = totalsY + totalsRowHeight + 5;
+  // Footer notes
+  const footerY = totalsY + totalsHeight + 3;
   doc.setFont('times', 'italic');
-  doc.setFontSize(8);
-  doc.text('Synoptic Entry: Dr. Merchandise (Labor) $_________  Cr. Cash $_________', startX, noteY);
-  doc.text('Posted to Synoptic: Date _________ Page _____', startX + 150, noteY);
+  doc.setFontSize(6);
+  setColor(doc, INK, 'text');
   
-  addPageNumber(doc, pageNum);
+  if (isLeftPage) {
+    doc.text(`Spread ${spreadNum} of 2`, startX, footerY);
+  } else {
+    doc.text('Cash on Hand: $________', startX, footerY);
+    doc.text('Carried Forward: $________', startX + 50, footerY);
+  }
+}
+
+// ============================================================================
+// AUXILIARY BOOKS (Simplified for 6x9 format)
+// ============================================================================
+
+function addAuxiliaryBook(
+  doc: jsPDF, 
+  title: string, 
+  subtitle: string,
+  columns: { name: string; width: number }[],
+  year: number,
+  pageNum: number,
+  numPages: number = 2
+): number {
+  for (let p = 0; p < numPages; p++) {
+    doc.addPage();
+    const currentPage = pageNum + p;
+    addRunningHeader(doc, `${title} — ${year}`, currentPage);
+    
+    const marginL = getMarginLeft(currentPage);
+    
+    let y = MARGIN_TOP + 6;
+    
+    // Title
+    setColor(doc, INK, 'text');
+    doc.setFont('times', 'bold');
+    doc.setFontSize(10);
+    doc.text(title.toUpperCase(), PAGE_WIDTH / 2, y, { align: 'center' });
+    
+    if (p === 0 && subtitle) {
+      y += 4;
+      doc.setFont('times', 'italic');
+      doc.setFontSize(6);
+      doc.text(subtitle, PAGE_WIDTH / 2, y, { align: 'center' });
+    }
+    
+    y += 6;
+    
+    // Draw table
+    const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
+    const startX = marginL;
+    const headerHeight = 6;
+    const rowHeight = 5;
+    
+    // Header
+    let x = startX;
+    setColor(doc, HEADER_BG, 'fill');
+    setColor(doc, SEPIA, 'draw');
+    doc.setLineWidth(0.2);
+    
+    for (const col of columns) {
+      doc.rect(x, y, col.width, headerHeight, 'FD');
+      setColor(doc, INK, 'text');
+      doc.setFont('times', 'bold');
+      doc.setFontSize(5.5);
+      doc.text(col.name, x + col.width / 2, y + 4, { align: 'center' });
+      x += col.width;
+    }
+    
+    y += headerHeight;
+    
+    // Rows
+    const availableHeight = PAGE_HEIGHT - y - MARGIN_BOTTOM - 10;
+    const numRows = Math.floor(availableHeight / rowHeight);
+    
+    setColor(doc, LINES, 'draw');
+    doc.setLineWidth(0.1);
+    
+    for (let row = 0; row <= numRows; row++) {
+      doc.line(startX, y + row * rowHeight, startX + totalWidth, y + row * rowHeight);
+    }
+    
+    // Vertical lines
+    x = startX;
+    doc.setLineWidth(0.12);
+    for (const col of columns) {
+      doc.line(x, y, x, y + numRows * rowHeight);
+      x += col.width;
+    }
+    doc.line(x, y, x, y + numRows * rowHeight);
+    
+    // Totals row
+    const totalsY = y + numRows * rowHeight;
+    setColor(doc, HEADER_BG, 'fill');
+    doc.rect(startX, totalsY, totalWidth, 5, 'F');
+    setColor(doc, SEPIA, 'draw');
+    doc.setLineWidth(0.2);
+    doc.rect(startX, totalsY, totalWidth, 5);
+    
+    setColor(doc, INK, 'text');
+    doc.setFont('times', 'bold');
+    doc.setFontSize(5);
+    doc.text('PAGE TOTAL', startX + 2, totalsY + 3.5);
+    
+    addPageNumber(doc, currentPage);
+  }
+  
+  return pageNum + numPages - 1;
+}
+
+function addPurchaseBook(doc: jsPDF, year: number, pageNum: number): number {
+  const cols = [
+    { name: 'DATE', width: 14 },
+    { name: 'VENDOR', width: 35 },
+    { name: 'DESCRIPTION', width: 45 },
+    { name: 'AMOUNT', width: 18 },
+    { name: '✓', width: 8 },
+  ];
+  return addAuxiliaryBook(doc, 'Purchase Day-Book', 'Dr. Merchandise, Cr. Persons (Buy From)', cols, year, pageNum);
+}
+
+function addSalesBook(doc: jsPDF, year: number, pageNum: number): number {
+  const cols = [
+    { name: 'DATE', width: 14 },
+    { name: 'CUSTOMER', width: 35 },
+    { name: 'DESCRIPTION', width: 45 },
+    { name: 'AMOUNT', width: 18 },
+    { name: '✓', width: 8 },
+  ];
+  return addAuxiliaryBook(doc, 'Sales Day-Book', 'Dr. Persons (Sell To), Cr. Merchandise', cols, year, pageNum);
+}
+
+function addBillsReceivableBook(doc: jsPDF, year: number, pageNum: number): number {
+  const cols = [
+    { name: 'DATE', width: 12 },
+    { name: 'FROM WHOM', width: 30 },
+    { name: 'AMOUNT', width: 16 },
+    { name: 'DUE', width: 14 },
+    { name: 'PAID', width: 14 },
+    { name: 'REMARKS', width: 28 },
+  ];
+  return addAuxiliaryBook(doc, 'Bills Receivable', 'Notes we hold for collection', cols, year, pageNum);
+}
+
+function addBillsPayableBook(doc: jsPDF, year: number, pageNum: number): number {
+  const cols = [
+    { name: 'DATE', width: 12 },
+    { name: 'TO WHOM', width: 30 },
+    { name: 'AMOUNT', width: 16 },
+    { name: 'DUE', width: 14 },
+    { name: 'PAID', width: 14 },
+    { name: 'REMARKS', width: 28 },
+  ];
+  return addAuxiliaryBook(doc, 'Bills Payable', 'Notes we owe to others', cols, year, pageNum);
+}
+
+function addPayrollBook(doc: jsPDF, year: number, pageNum: number): number {
+  const cols = [
+    { name: '#', width: 6 },
+    { name: 'NAME', width: 32 },
+    { name: 'DAYS', width: 12 },
+    { name: 'RATE', width: 14 },
+    { name: 'GROSS', width: 16 },
+    { name: 'NET', width: 16 },
+    { name: 'SIGN', width: 20 },
+  ];
+  return addAuxiliaryBook(doc, 'Time-Book & Payroll', 'Dr. Merchandise (Labor), Cr. Cash', cols, year, pageNum, 4);
 }
 
 // ============================================================================
 // CLOSING WORKSHEETS
 // ============================================================================
 
-function addTrialBalanceSheet(doc: jsPDF, year: number, pageNum: number) {
+function addTrialBalance(doc: jsPDF, year: number, pageNum: number): number {
   doc.addPage();
-  addRunningHeader(doc, `Closing Worksheets — ${year}`, 'Trial Balance');
+  addRunningHeader(doc, `Closing Worksheets — ${year}`, pageNum);
+  
+  const marginL = getMarginLeft(pageNum);
+  let y = MARGIN_TOP + 8;
   
   setColor(doc, INK, 'text');
   doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.text('TRIAL BALANCE', PAGE_WIDTH / 2, 22, { align: 'center' });
+  doc.setFontSize(11);
+  doc.text('TRIAL BALANCE', PAGE_WIDTH / 2, y, { align: 'center' });
+  
+  y += 5;
   doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  doc.text(`As of _________________, ${year}`, PAGE_WIDTH / 2, 28, { align: 'center' });
+  doc.setFontSize(8);
+  doc.text(`As of _____________, ${year}`, PAGE_WIDTH / 2, y, { align: 'center' });
   
-  const startY = 35;
-  const headerHeight = 8;
-  const rowHeight = 6;
-  
-  const columns: ColDef[] = [
-    { name: 'ACCOUNT NAME', width: 100 },
-    { name: 'L.F.', width: 15 },
-    { name: 'DEBIT', width: 35 },
-    { name: 'CREDIT', width: 35 },
-  ];
-  
-  const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
-  const startX = (PAGE_WIDTH - totalWidth) / 2;
+  y += 8;
   
   // Header
-  let x = startX;
-  for (const col of columns) {
-    setColor(doc, HEADER_LIGHT, 'fill');
-    doc.rect(x, startY, col.width, headerHeight, 'F');
-    setColor(doc, SEPIA, 'draw');
-    doc.setLineWidth(0.3);
-    doc.rect(x, startY, col.width, headerHeight);
-    
+  const cols = [
+    { name: 'ACCOUNT', width: 60 },
+    { name: 'DEBIT', width: 28 },
+    { name: 'CREDIT', width: 28 },
+  ];
+  
+  let x = marginL;
+  setColor(doc, HEADER_BG, 'fill');
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.2);
+  
+  for (const col of cols) {
+    doc.rect(x, y, col.width, 6, 'FD');
     setColor(doc, INK, 'text');
     doc.setFont('times', 'bold');
-    doc.setFontSize(9);
-    doc.text(col.name, x + col.width / 2, startY + 5.5, { align: 'center' });
+    doc.setFontSize(7);
+    doc.text(col.name, x + col.width / 2, y + 4, { align: 'center' });
     x += col.width;
   }
   
-  // Pre-printed account names
+  y += 6;
+  
+  // Pre-printed accounts
   const accounts = [
     'Cash',
-    'Persons (We Sell To) — Accounts Receivable',
-    'Persons (We Buy From) — Accounts Payable',
-    'Merchandise Inventory',
+    'Persons (We Sell To)',
+    'Persons (We Buy From)',
+    'Merchandise',
     'Bills Receivable',
     'Bills Payable',
     'Expense',
     'Interest & Discount',
     'Sundries — Capital',
     'Sundries — Drawing',
-    'Sundries — Profit & Loss',
-    '', '', '', '', '', '', '', '', '', // Blank rows
+    'Sundries — P&L',
+    '', '', '', '', '',
   ];
   
-  let y = startY + headerHeight;
+  const totalWidth = cols.reduce((sum, c) => sum + c.width, 0);
+  const rowHeight = 6;
+  
   setColor(doc, LINES, 'draw');
   doc.setLineWidth(0.1);
+  doc.setFont('times', 'normal');
+  doc.setFontSize(7);
   
   for (const acct of accounts) {
-    doc.line(startX, y + rowHeight, startX + totalWidth, y + rowHeight);
-    
+    doc.line(marginL, y + rowHeight, marginL + totalWidth, y + rowHeight);
     if (acct) {
-      doc.setFont('times', 'normal');
-      doc.setFontSize(8);
       setColor(doc, INK, 'text');
-      doc.text(acct, startX + 3, y + 4);
+      doc.text(acct, marginL + 2, y + 4);
     }
     y += rowHeight;
   }
   
   // Vertical lines
-  x = startX;
-  const dataEndY = y;
-  doc.setLineWidth(0.15);
-  for (const col of columns) {
-    doc.line(x, startY + headerHeight, x, dataEndY);
+  x = marginL;
+  doc.setLineWidth(0.12);
+  for (const col of cols) {
+    doc.line(x, y - accounts.length * rowHeight, x, y);
     x += col.width;
   }
-  doc.line(x, startY + headerHeight, x, dataEndY);
+  doc.line(x, y - accounts.length * rowHeight, x, y);
   
-  // Totals row
-  setColor(doc, HEADER_LIGHT, 'fill');
-  doc.rect(startX, dataEndY, totalWidth, 8, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.4);
-  doc.rect(startX, dataEndY, totalWidth, 8);
-  
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(9);
-  doc.text('TOTALS (Must be Equal)', startX + columns[0].width / 2, dataEndY + 5.5, { align: 'center' });
-  
-  addPageNumber(doc, pageNum);
-}
-
-function addProfitLossStatement(doc: jsPDF, year: number, pageNum: number) {
-  doc.addPage();
-  addRunningHeader(doc, `Closing Worksheets — ${year}`, 'Profit & Loss');
-  
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.text('STATEMENT OF PROFIT AND LOSS', PAGE_WIDTH / 2, 22, { align: 'center' });
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  doc.text(`For the Period Ending _________________, ${year}`, PAGE_WIDTH / 2, 28, { align: 'center' });
-  
-  const startY = 40;
-  const leftCol = 50;
-  const rightCol = PAGE_WIDTH - 50;
-  const lineHeight = 7;
-  
-  let y = startY;
-  
-  const items = [
-    { label: 'Merchandise — Total Debits (Purchases + Opening Inventory)', value: true },
-    { label: 'Less: Merchandise — Total Credits (Sales)', value: true },
-    { label: '', value: false, line: true },
-    { label: 'Merchandise Balance (Book Value)', value: true },
-    { label: '', value: false },
-    { label: 'Actual Inventory (Physical Count)', value: true },
-    { label: '', value: false, line: true },
-    { label: 'GROSS PROFIT (or Loss)', value: true, bold: true },
-    { label: '', value: false },
-    { label: 'Less: Expenses', value: true },
-    { label: 'Less: Interest & Discount (Net)', value: true },
-    { label: '', value: false, line: true },
-    { label: 'NET PROFIT (or Loss)', value: true, bold: true },
-    { label: '', value: false },
-    { label: '', value: false },
-    { label: 'Distribution of Net Profit:', value: false, bold: true },
-    { label: '    Partner/Proprietor: _______________ Share: _____%', value: true },
-    { label: '    Partner/Proprietor: _______________ Share: _____%', value: true },
-    { label: '    Partner/Proprietor: _______________ Share: _____%', value: true },
-  ];
-  
-  for (const item of items) {
-    if (item.line) {
-      setColor(doc, SEPIA, 'draw');
-      doc.setLineWidth(0.3);
-      doc.line(rightCol - 40, y, rightCol, y);
-      y += 2;
-      continue;
-    }
-    
-    if (!item.label) {
-      y += lineHeight / 2;
-      continue;
-    }
-    
-    doc.setFont('times', item.bold ? 'bold' : 'normal');
-    doc.setFontSize(10);
-    setColor(doc, INK, 'text');
-    doc.text(item.label, leftCol, y);
-    
-    if (item.value) {
-      doc.text('$_____________', rightCol, y, { align: 'right' });
-    }
-    
-    y += lineHeight;
-  }
-  
-  addPageNumber(doc, pageNum);
-}
-
-function addBalanceSheet(doc: jsPDF, year: number, pageNum: number) {
-  doc.addPage();
-  addRunningHeader(doc, `Closing Worksheets — ${year}`, 'Balance Sheet');
-  
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(14);
-  doc.text('BALANCE SHEET', PAGE_WIDTH / 2, 22, { align: 'center' });
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  doc.text(`As of _________________, ${year}`, PAGE_WIDTH / 2, 28, { align: 'center' });
-  
-  const startY = 40;
-  const colWidth = (PAGE_WIDTH - 40) / 2;
-  const leftStart = 20;
-  const rightStart = leftStart + colWidth + 10;
-  const lineHeight = 7;
-  
-  // Left column - Assets
-  let y = startY;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(12);
-  doc.text('ASSETS', leftStart + colWidth / 2, y, { align: 'center' });
-  y += 8;
-  
+  // Totals
+  setColor(doc, HEADER_BG, 'fill');
+  doc.rect(marginL, y, totalWidth, 6, 'F');
   setColor(doc, SEPIA, 'draw');
   doc.setLineWidth(0.3);
-  doc.line(leftStart, y, leftStart + colWidth, y);
-  y += 5;
-  
-  const assets = [
-    'Cash on Hand',
-    'Persons (We Sell To) — Receivables',
-    'Bills Receivable',
-    'Merchandise Inventory',
-    'Other Assets: _______________',
-    'Other Assets: _______________',
-  ];
-  
-  doc.setFont('times', 'normal');
-  doc.setFontSize(10);
-  setColor(doc, INK, 'text');
-  
-  for (const asset of assets) {
-    doc.text(asset, leftStart + 3, y);
-    doc.text('$_____________', leftStart + colWidth - 3, y, { align: 'right' });
-    y += lineHeight;
-  }
-  
-  y += 3;
-  doc.setLineWidth(0.3);
-  doc.line(leftStart + colWidth - 50, y, leftStart + colWidth, y);
-  y += 5;
-  doc.setFont('times', 'bold');
-  doc.text('TOTAL ASSETS', leftStart + 3, y);
-  doc.text('$_____________', leftStart + colWidth - 3, y, { align: 'right' });
-  
-  // Right column - Liabilities & Capital
-  y = startY;
-  doc.setFont('times', 'bold');
-  doc.setFontSize(12);
-  doc.text('LIABILITIES & CAPITAL', rightStart + colWidth / 2, y, { align: 'center' });
-  y += 8;
-  
-  doc.setLineWidth(0.3);
-  doc.line(rightStart, y, rightStart + colWidth, y);
-  y += 5;
-  
-  doc.setFontSize(10);
-  doc.text('LIABILITIES:', rightStart + 3, y);
-  y += lineHeight;
-  
-  const liabilities = [
-    'Persons (We Buy From) — Payables',
-    'Bills Payable',
-    'Other Liabilities: _______________',
-  ];
-  
-  doc.setFont('times', 'normal');
-  for (const liab of liabilities) {
-    doc.text('    ' + liab, rightStart + 3, y);
-    doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-    y += lineHeight;
-  }
-  
-  y += 3;
-  doc.setFont('times', 'bold');
-  doc.text('Total Liabilities', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  y += lineHeight + 5;
-  
-  doc.text('CAPITAL:', rightStart + 3, y);
-  y += lineHeight;
-  
-  doc.setFont('times', 'normal');
-  doc.text('    Capital, Beginning of Period', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  y += lineHeight;
-  doc.text('    Add: Net Profit (or Less: Net Loss)', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  y += lineHeight;
-  doc.text('    Less: Withdrawals', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  y += lineHeight;
-  
-  doc.setLineWidth(0.3);
-  doc.line(rightStart + colWidth - 50, y, rightStart + colWidth, y);
-  y += 5;
-  doc.setFont('times', 'bold');
-  doc.text('Total Capital', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  y += lineHeight + 5;
-  
-  doc.setLineWidth(0.4);
-  doc.line(rightStart + colWidth - 50, y, rightStart + colWidth, y);
-  y += 5;
-  doc.text('TOTAL LIABILITIES & CAPITAL', rightStart + 3, y);
-  doc.text('$_____________', rightStart + colWidth - 3, y, { align: 'right' });
-  
-  addPageNumber(doc, pageNum);
-}
-
-// ============================================================================
-// HELPER: DRAW AUXILIARY TABLE
-// ============================================================================
-
-function drawAuxiliaryTable(doc: jsPDF, columns: ColDef[], startY: number, headerHeight: number, rowHeight: number, pageNum: number) {
-  const totalWidth = columns.reduce((sum, c) => sum + c.width, 0);
-  const startX = MARGIN_LEFT + (USABLE_WIDTH - totalWidth) / 2;
-  
-  // Draw headers
-  let x = startX;
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
-  
-  for (const col of columns) {
-    setColor(doc, HEADER_LIGHT, 'fill');
-    doc.rect(x, startY, col.width, headerHeight, 'F');
-    setColor(doc, SEPIA, 'draw');
-    doc.rect(x, startY, col.width, headerHeight);
-    
-    setColor(doc, INK, 'text');
-    doc.setFont('times', 'bold');
-    doc.setFontSize(7);
-    
-    const lines = col.name.split('\n');
-    if (lines.length > 1) {
-      doc.text(lines[0], x + col.width / 2, startY + 3.5, { align: 'center' });
-      doc.text(lines[1], x + col.width / 2, startY + 7, { align: 'center' });
-    } else {
-      doc.text(col.name, x + col.width / 2, startY + 5.5, { align: 'center' });
-    }
-    x += col.width;
-  }
-  
-  // Calculate available rows
-  const dataStartY = startY + headerHeight;
-  const totalsRowHeight = 7;
-  const availableHeight = PAGE_HEIGHT - dataStartY - MARGIN_BOTTOM - totalsRowHeight - 5;
-  const numRows = Math.floor(availableHeight / rowHeight);
-  
-  // Draw rows
-  setColor(doc, LINES, 'draw');
-  doc.setLineWidth(0.1);
-  
-  for (let row = 0; row <= numRows; row++) {
-    const y = dataStartY + row * rowHeight;
-    doc.line(startX, y, startX + totalWidth, y);
-  }
-  
-  // Vertical lines
-  x = startX;
-  const dataEndY = dataStartY + numRows * rowHeight;
-  doc.setLineWidth(0.15);
-  for (const col of columns) {
-    doc.line(x, dataStartY, x, dataEndY);
-    x += col.width;
-  }
-  doc.line(x, dataStartY, x, dataEndY);
-  
-  // Totals row
-  setColor(doc, HEADER_LIGHT, 'fill');
-  doc.rect(startX, dataEndY, totalWidth, totalsRowHeight, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.3);
-  doc.rect(startX, dataEndY, totalWidth, totalsRowHeight);
+  doc.rect(marginL, y, totalWidth, 6);
   
   setColor(doc, INK, 'text');
   doc.setFont('times', 'bold');
   doc.setFontSize(7);
-  doc.text('PAGE TOTAL', startX + columns[0].width + columns[1].width / 2, dataEndY + 4.5, { align: 'center' });
-  
-  // Vertical lines in totals
-  x = startX;
-  for (const col of columns) {
-    doc.line(x, dataEndY, x, dataEndY + totalsRowHeight);
-    x += col.width;
-  }
-  doc.line(x, dataEndY, x, dataEndY + totalsRowHeight);
+  doc.text('TOTALS (Must Balance)', marginL + 2, y + 4);
   
   addPageNumber(doc, pageNum);
+  return pageNum;
 }
 
-// ============================================================================
-// YEAR DIVIDER PAGE
-// ============================================================================
-
-function addYearDividerPage(doc: jsPDF, year: number) {
+function addProfitLossStatement(doc: jsPDF, year: number, pageNum: number): number {
   doc.addPage();
+  addRunningHeader(doc, `Closing Worksheets — ${year}`, pageNum);
   
-  const centerX = PAGE_WIDTH / 2;
-  const centerY = PAGE_HEIGHT / 2;
+  const marginL = getMarginLeft(pageNum);
+  let y = MARGIN_TOP + 8;
   
-  // Decorative border
-  drawDecorativeBorder(doc, 30, 30, PAGE_WIDTH - 60, PAGE_HEIGHT - 60);
-  
-  // Year
   setColor(doc, INK, 'text');
   doc.setFont('times', 'bold');
-  doc.setFontSize(72);
-  doc.text(year.toString(), centerX, centerY - 10, { align: 'center' });
+  doc.setFontSize(11);
+  doc.text('PROFIT & LOSS', PAGE_WIDTH / 2, y, { align: 'center' });
   
-  // Underline
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(1);
-  doc.line(centerX - 50, centerY + 5, centerX + 50, centerY + 5);
-  doc.setLineWidth(0.3);
-  doc.line(centerX - 40, centerY + 8, centerX + 40, centerY + 8);
+  y += 5;
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  doc.text(`For Period Ending _____________, ${year}`, PAGE_WIDTH / 2, y, { align: 'center' });
   
-  // Subtitle
-  doc.setFont('times', 'italic');
-  doc.setFontSize(14);
+  y += 12;
+  
+  const items = [
+    { label: 'Merchandise — Debits (Purchases)', line: true },
+    { label: 'Less: Merchandise — Credits (Sales)', line: true },
+    { label: 'Merchandise Balance', line: true, bold: true },
+    { label: '', spacer: true },
+    { label: 'Actual Inventory (Count)', line: true },
+    { label: 'GROSS PROFIT (LOSS)', line: true, bold: true },
+    { label: '', spacer: true },
+    { label: 'Less: Expenses', line: true },
+    { label: 'Less: Interest & Discount', line: true },
+    { label: 'NET PROFIT (LOSS)', line: true, bold: true },
+    { label: '', spacer: true },
+    { label: 'Distribution:', bold: true },
+    { label: '  Partner: _____________  %____', line: true },
+    { label: '  Partner: _____________  %____', line: true },
+  ];
+  
+  doc.setFontSize(8);
+  
+  for (const item of items) {
+    if (item.spacer) {
+      y += 4;
+      continue;
+    }
+    
+    doc.setFont('times', item.bold ? 'bold' : 'normal');
+    doc.text(item.label, marginL, y);
+    
+    if (item.line) {
+      doc.text('$____________', PAGE_WIDTH - getMarginRight(pageNum), y, { align: 'right' });
+    }
+    
+    y += 6;
+  }
+  
+  addPageNumber(doc, pageNum);
+  return pageNum;
+}
+
+function addBalanceSheet(doc: jsPDF, year: number, pageNum: number): number {
+  doc.addPage();
+  addRunningHeader(doc, `Closing Worksheets — ${year}`, pageNum);
+  
+  const marginL = getMarginLeft(pageNum);
+  const marginR = getMarginRight(pageNum);
+  let y = MARGIN_TOP + 8;
+  
   setColor(doc, INK, 'text');
-  doc.text('Synoptic Ledger & Auxiliary Books', centerX, centerY + 25, { align: 'center' });
+  doc.setFont('times', 'bold');
+  doc.setFontSize(11);
+  doc.text('BALANCE SHEET', PAGE_WIDTH / 2, y, { align: 'center' });
+  
+  y += 5;
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  doc.text(`As of _____________, ${year}`, PAGE_WIDTH / 2, y, { align: 'center' });
+  
+  y += 10;
+  
+  // ASSETS
+  doc.setFont('times', 'bold');
+  doc.setFontSize(9);
+  doc.text('ASSETS', marginL, y);
+  y += 5;
+  
+  const assets = ['Cash', 'Accounts Receivable', 'Bills Receivable', 'Merchandise Inventory', 'Other: ____________'];
+  
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  for (const a of assets) {
+    doc.text('  ' + a, marginL, y);
+    doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+    y += 5;
+  }
+  
+  y += 2;
+  doc.setFont('times', 'bold');
+  doc.text('TOTAL ASSETS', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  
+  y += 10;
+  
+  // LIABILITIES
+  doc.setFont('times', 'bold');
+  doc.setFontSize(9);
+  doc.text('LIABILITIES', marginL, y);
+  y += 5;
+  
+  const liabilities = ['Accounts Payable', 'Bills Payable', 'Other: ____________'];
+  
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  for (const l of liabilities) {
+    doc.text('  ' + l, marginL, y);
+    doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+    y += 5;
+  }
+  
+  y += 2;
+  doc.setFont('times', 'bold');
+  doc.text('Total Liabilities', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  
+  y += 8;
+  
+  // CAPITAL
+  doc.setFontSize(9);
+  doc.text('CAPITAL', marginL, y);
+  y += 5;
+  
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  doc.text('  Beginning Capital', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  y += 5;
+  doc.text('  Add: Net Profit (Less: Loss)', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  y += 5;
+  doc.text('  Less: Withdrawals', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  y += 5;
+  
+  doc.setFont('times', 'bold');
+  doc.text('Total Capital', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  
+  y += 8;
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.5);
+  doc.line(marginL, y, PAGE_WIDTH - marginR, y);
+  y += 4;
+  
+  doc.setFontSize(9);
+  doc.text('TOTAL LIABILITIES & CAPITAL', marginL, y);
+  doc.text('$_________', PAGE_WIDTH - marginR, y, { align: 'right' });
+  
+  addPageNumber(doc, pageNum);
+  return pageNum;
 }
 
 // ============================================================================
@@ -1130,9 +1178,9 @@ function addYearDividerPage(doc: jsPDF, year: number) {
 
 export function generatePrintableLedger(startYear: number, numYears: number = 1): void {
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
-    format: 'letter',
+    format: [PAGE_WIDTH, PAGE_HEIGHT], // 6x9 inches
   });
 
   const endYear = startYear + numYears - 1;
@@ -1147,311 +1195,122 @@ export function generatePrintableLedger(startYear: number, numYears: number = 1)
 
   let pageNum = 1;
 
-  // Page 1: Title Page (use startYear for display, but show range if multi-year)
-  addTitlePageMultiYear(doc, startYear, numYears);
+  // Page 1: Title Page (recto, no page number)
+  addTitlePage(doc, startYear, numYears);
   
-  // Page 2: Table of Contents
-  addTableOfContentsMultiYear(doc, startYear, numYears);
+  // Page 2: Copyright (verso)
+  addCopyrightPage(doc, startYear, numYears);
+  pageNum = 2;
   
-  // Page 3: Instructions
-  addInstructionsPage(doc);
-  pageNum = 3;
+  // Page 3: Table of Contents (recto)
+  pageNum++;
+  pageNum = addTableOfContents(doc, startYear, numYears, pageNum);
   
-  // Page 4: Quick Reference
-  addQuickReferencePage(doc);
-  pageNum = 4;
+  // Page 4: Blank if needed to make instructions start on recto
+  if (pageNum % 2 === 1) {
+    addBlankPage(doc);
+    pageNum++;
+  }
+  
+  // Page 5: Instructions (recto)
+  pageNum++;
+  pageNum = addInstructionsPages(doc, pageNum);
+  
+  // Page 6: Quick Reference
+  pageNum++;
+  pageNum = addQuickReferencePage(doc, pageNum);
+  
+  // Ensure we start years on recto
+  if (pageNum % 2 === 0) {
+    addBlankPage(doc);
+    pageNum++;
+  }
 
-  // Generate pages for each year
+  // Generate each year
   for (let yearOffset = 0; yearOffset < numYears; yearOffset++) {
     const year = startYear + yearOffset;
     
-    // Add year divider page if multi-year book
+    // Year divider page (if multi-year)
     if (numYears > 1) {
-      addYearDividerPage(doc, year);
       pageNum++;
-    }
-
-    // Monthly Synoptic Ledger Pages (2 per month)
-    for (let m = 0; m < 12; m++) {
-      for (let p = 0; p < 2; p++) {
+      pageNum = addYearDivider(doc, year, pageNum);
+      
+      // Ensure synoptic starts on even page (left side of spread)
+      if (pageNum % 2 === 1) {
+        addBlankPage(doc);
         pageNum++;
-        addSynopticLedgerPage(doc, MONTHS[m], year, pageNum, `${p + 1} of 2`);
+      }
+    } else {
+      // Single year: ensure we start on even page
+      if (pageNum % 2 === 1) {
+        addBlankPage(doc);
+        pageNum++;
       }
     }
 
-    // Purchase Day-Book
-    pageNum++;
-    addPurchaseDayBook(doc, year, pageNum, false);
-    pageNum++;
-    addPurchaseDayBook(doc, year, pageNum, true);
-
-    // Sales Day-Book
-    pageNum++;
-    addSalesDayBook(doc, year, pageNum, false);
-    pageNum++;
-    addSalesDayBook(doc, year, pageNum, true);
-
-    // Bills Receivable
-    pageNum++;
-    addBillsReceivable(doc, year, pageNum, false);
-    pageNum++;
-    addBillsReceivable(doc, year, pageNum, true);
-
-    // Bills Payable
-    pageNum++;
-    addBillsPayable(doc, year, pageNum, false);
-    pageNum++;
-    addBillsPayable(doc, year, pageNum, true);
-
-    // Payroll (4 pages per year)
-    for (let i = 0; i < 4; i++) {
+    // Monthly Synoptic Ledger Spreads (2 pages per month = 24 pages)
+    for (let m = 0; m < 12; m++) {
       pageNum++;
-      addPayrollPage(doc, year, pageNum);
+      pageNum = addSynopticSpread(doc, MONTHS[m], year, pageNum, (m % 2) + 1);
     }
 
-    // Closing Worksheets
+    // Auxiliary books
     pageNum++;
-    addTrialBalanceSheet(doc, year, pageNum);
+    pageNum = addPurchaseBook(doc, year, pageNum);
+    
     pageNum++;
-    addProfitLossStatement(doc, year, pageNum);
+    pageNum = addSalesBook(doc, year, pageNum);
+    
     pageNum++;
-    addBalanceSheet(doc, year, pageNum);
+    pageNum = addBillsReceivableBook(doc, year, pageNum);
+    
+    pageNum++;
+    pageNum = addBillsPayableBook(doc, year, pageNum);
+    
+    pageNum++;
+    pageNum = addPayrollBook(doc, year, pageNum);
+
+    // Closing worksheets
+    pageNum++;
+    pageNum = addTrialBalance(doc, year, pageNum);
+    
+    pageNum++;
+    pageNum = addProfitLossStatement(doc, year, pageNum);
+    
+    pageNum++;
+    pageNum = addBalanceSheet(doc, year, pageNum);
+  }
+
+  // Final page count should be even for proper book printing
+  if (pageNum % 2 === 1) {
+    addBlankPage(doc);
   }
 
   // Save the PDF
   const filename = numYears > 1 
-    ? `Bakers_Synoptic_Ledger_${startYear}-${endYear}.pdf`
-    : `Bakers_Synoptic_Ledger_${startYear}.pdf`;
+    ? `Bakers_Synoptic_Ledger_${startYear}-${endYear}_6x9.pdf`
+    : `Bakers_Synoptic_Ledger_${startYear}_6x9.pdf`;
   doc.save(filename);
-}
-
-// ============================================================================
-// MULTI-YEAR TITLE PAGE
-// ============================================================================
-
-function addTitlePageMultiYear(doc: jsPDF, startYear: number, numYears: number) {
-  const endYear = startYear + numYears - 1;
-  
-  // Decorative border
-  drawDecorativeBorder(doc, 15, 12, PAGE_WIDTH - 30, PAGE_HEIGHT - 24);
-  
-  // Ornamental top flourish
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.5);
-  const centerX = PAGE_WIDTH / 2;
-  doc.line(centerX - 60, 30, centerX + 60, 30);
-  doc.line(centerX - 50, 32, centerX + 50, 32);
-  doc.line(centerX - 40, 34, centerX + 40, 34);
-
-  // Main title
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(16);
-  doc.text("BAKER'S PATENT", centerX, 48, { align: 'center' });
-  
-  doc.setFontSize(28);
-  doc.text('LABOR-SAVING', centerX, 62, { align: 'center' });
-  
-  doc.setFontSize(36);
-  doc.text('SYNOPTIC', centerX, 80, { align: 'center' });
-  
-  doc.setFontSize(20);
-  doc.text('BOOK-KEEPING SYSTEM', centerX, 93, { align: 'center' });
-
-  // Decorative line under title
-  doc.setLineWidth(1);
-  doc.line(50, 100, PAGE_WIDTH - 50, 100);
-  doc.setLineWidth(0.3);
-  doc.line(60, 103, PAGE_WIDTH - 60, 103);
-
-  // Subtitle
-  doc.setFont('times', 'italic');
-  doc.setFontSize(12);
-  doc.text('A Combined Day-Book, Journal, Cash-Book, and Ledger', centerX, 115, { align: 'center' });
-  doc.text('Balanced Daily on a Single Page Without Re-Writing', centerX, 123, { align: 'center' });
-
-  // Year(s) in decorative frame
-  doc.setLineWidth(0.5);
-  const yearBoxY = 132;
-  const yearBoxWidth = numYears > 1 ? 100 : 70;
-  doc.rect(centerX - yearBoxWidth/2, yearBoxY, yearBoxWidth, 28);
-  doc.rect(centerX - yearBoxWidth/2 + 2, yearBoxY + 2, yearBoxWidth - 4, 24);
-  
-  doc.setFont('times', 'bold');
-  if (numYears > 1) {
-    doc.setFontSize(28);
-    doc.text(`${startYear}–${endYear}`, centerX, yearBoxY + 18, { align: 'center' });
-  } else {
-    doc.setFontSize(32);
-    doc.text(startYear.toString(), centerX, yearBoxY + 19, { align: 'center' });
-  }
-
-  // The Universal Rule box
-  const ruleY = 168;
-  setColor(doc, PAPER, 'fill');
-  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.4);
-  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32);
-  
-  setColor(doc, RED_INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(11);
-  doc.text('THE UNIVERSAL RULE OF DOUBLE-ENTRY:', centerX, ruleY + 4, { align: 'center' });
-  
-  doc.setFont('times', 'bolditalic');
-  doc.setFontSize(13);
-  doc.text('"Credit that which FURNISHES the value,', centerX, ruleY + 14, { align: 'center' });
-  doc.text('Debit that which RECEIVES the value."', centerX, ruleY + 22, { align: 'center' });
-
-  // Footer
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'normal');
-  doc.setFontSize(8);
-  doc.text('Based on the system at issue in Baker v. Selden, 101 U.S. 99 (1879)', centerX, PAGE_HEIGHT - 20, { align: 'center' });
-  doc.setFont('times', 'italic');
-  doc.setFontSize(7);
-  doc.text('"The art of book-keeping cannot be the subject of copyright..."', centerX, PAGE_HEIGHT - 15, { align: 'center' });
-}
-
-// ============================================================================
-// MULTI-YEAR TABLE OF CONTENTS
-// ============================================================================
-
-function addTableOfContentsMultiYear(doc: jsPDF, startYear: number, numYears: number) {
-  doc.addPage();
-  
-  const centerX = PAGE_WIDTH / 2;
-  setColor(doc, INK, 'text');
-  
-  // Title
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.text('TABLE OF CONTENTS', centerX, 20, { align: 'center' });
-  
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.5);
-  doc.line(80, 24, PAGE_WIDTH - 80, 24);
-  
-  let y = 35;
-  const leftCol = 40;
-  const rightCol = PAGE_WIDTH - 40;
-  
-  // Front matter
-  const frontMatter = [
-    { title: 'Instructions for Use', page: '3' },
-    { title: 'Quick Reference Guide', page: '4' },
-  ];
-  
-  doc.setFontSize(9);
-  for (const item of frontMatter) {
-    doc.setFont('times', 'normal');
-    doc.text(item.title, leftCol, y);
-    const titleWidth = doc.getTextWidth(item.title);
-    const pageWidth = doc.getTextWidth(item.page);
-    let dotX = leftCol + titleWidth + 2;
-    const dotsEnd = rightCol - pageWidth - 2;
-    while (dotX < dotsEnd) {
-      doc.text('.', dotX, y);
-      dotX += 2;
-    }
-    doc.text(item.page, rightCol, y, { align: 'right' });
-    y += 5;
-  }
-  
-  y += 5;
-  
-  // Calculate page numbers
-  let currentPage = 4; // After instructions and quick ref
-  
-  for (let yearOffset = 0; yearOffset < numYears; yearOffset++) {
-    const year = startYear + yearOffset;
-    
-    // Year header
-    doc.setFont('times', 'bold');
-    doc.setFontSize(11);
-    setColor(doc, SEPIA, 'text');
-    doc.text(`━━━ ${year} ━━━`, centerX, y, { align: 'center' });
-    y += 6;
-    
-    setColor(doc, INK, 'text');
-    doc.setFontSize(9);
-    
-    if (numYears > 1) {
-      currentPage++; // Year divider page
-    }
-    
-    const yearSections = [
-      { title: '    Synoptic Ledger (January–June)', pages: 12 },
-      { title: '    Synoptic Ledger (July–December)', pages: 12 },
-      { title: '    Purchase Day-Book', pages: 2 },
-      { title: '    Sales Day-Book', pages: 2 },
-      { title: '    Bills Receivable Register', pages: 2 },
-      { title: '    Bills Payable Register', pages: 2 },
-      { title: '    Time-Book & Pay-Roll', pages: 4 },
-      { title: '    Trial Balance', pages: 1 },
-      { title: '    Profit & Loss Statement', pages: 1 },
-      { title: '    Balance Sheet', pages: 1 },
-    ];
-    
-    for (const section of yearSections) {
-      doc.setFont('times', 'normal');
-      const startPage = currentPage + 1;
-      const endPage = currentPage + section.pages;
-      const pageStr = section.pages === 1 ? `${startPage}` : `${startPage}–${endPage}`;
-      
-      doc.text(section.title, leftCol, y);
-      const titleWidth = doc.getTextWidth(section.title);
-      const pageWidth = doc.getTextWidth(pageStr);
-      let dotX = leftCol + titleWidth + 2;
-      const dotsEnd = rightCol - pageWidth - 2;
-      while (dotX < dotsEnd) {
-        doc.text('.', dotX, y);
-        dotX += 2;
-      }
-      doc.text(pageStr, rightCol, y, { align: 'right' });
-      
-      currentPage += section.pages;
-      y += 4.5;
-    }
-    
-    y += 4;
-    
-    // Check if we need a new page
-    if (y > PAGE_HEIGHT - 30 && yearOffset < numYears - 1) {
-      doc.addPage();
-      y = 25;
-    }
-  }
-  
-  addPageNumber(doc, 2);
 }
 
 export function generateQuickLedger(year: number, months: number = 1): void {
   const doc = new jsPDF({
-    orientation: 'landscape',
+    orientation: 'portrait',
     unit: 'mm',
-    format: 'letter',
+    format: [PAGE_WIDTH, PAGE_HEIGHT],
   });
 
   let pageNum = 0;
   
-  // Just the synoptic ledger pages for specified months
   for (let m = 0; m < months && m < 12; m++) {
-    for (let p = 0; p < 2; p++) {
+    pageNum++;
+    if (pageNum % 2 === 1 && pageNum > 1) {
+      // Ensure spreads start on even pages
+      addBlankPage(doc);
       pageNum++;
-      if (pageNum > 1) {
-        doc.addPage();
-      }
-      // Need to handle first page differently since addPage is called inside
-      if (pageNum === 1) {
-        // First page - draw directly
-        addRunningHeader(doc, `${MONTHS[m]} ${year}`, `Synoptic Ledger — ${p + 1} of 2`);
-        // The rest will be drawn by the function call below after we fix it
-      }
-      addSynopticLedgerPage(doc, MONTHS[m], year, pageNum, `${p + 1} of 2`);
     }
+    pageNum = addSynopticSpread(doc, MONTHS[m], year, pageNum, (m % 2) + 1);
   }
 
-  doc.save(`Synoptic_Ledger_${year}_${months}mo.pdf`);
+  doc.save(`Synoptic_Ledger_${year}_${months}mo_6x9.pdf`);
 }
