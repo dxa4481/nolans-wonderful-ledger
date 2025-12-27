@@ -124,19 +124,23 @@ export function ExportButton() {
 
               {/* Contents Preview */}
               <div className="bg-ledger-aged p-3 border border-ledger-lines text-xs">
-                <strong>Book Contents:</strong>
+                <strong>Book Contents ({exportType === 'full' ? '~43 pages' : `${quickMonths * 2} pages`}):</strong>
                 {exportType === 'full' ? (
                   <ul className="mt-1 ml-4 list-disc">
-                    <li>Decorative Title Page</li>
-                    <li>Instructions for Use</li>
+                    <li>Decorative Title Page with Universal Rule</li>
+                    <li>Table of Contents</li>
+                    <li>Instructions for Use & Quick Reference Guide</li>
                     <li>24 Monthly Synoptic Ledger Pages (Jan-Dec, 2 pages each)</li>
+                    <li>Purchase Day-Book (2 pages)</li>
+                    <li>Sales Day-Book (2 pages)</li>
                     <li>Bills Receivable Register (2 pages)</li>
                     <li>Bills Payable Register (2 pages)</li>
                     <li>Time-Book & Payroll Sheets (4 pages)</li>
+                    <li>Closing Worksheets: Trial Balance, P&L, Balance Sheet</li>
                   </ul>
                 ) : (
                   <ul className="mt-1 ml-4 list-disc">
-                    <li>{quickMonths * 2} Synoptic Ledger Pages</li>
+                    <li>{quickMonths * 2} Synoptic Ledger Pages ({quickMonths} month{quickMonths > 1 ? 's' : ''})</li>
                   </ul>
                 )}
               </div>
