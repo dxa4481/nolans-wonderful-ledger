@@ -3,7 +3,8 @@ import { generatePrintableLedger, generateQuickLedger } from '../utils/pdfExport
 
 export function ExportButton() {
   const [showModal, setShowModal] = useState(false);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [startYear, setStartYear] = useState(new Date().getFullYear());
+  const [numYears, setNumYears] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [exportType, setExportType] = useState<'full' | 'quick'>('full');
   const [quickMonths, setQuickMonths] = useState(1);
@@ -15,9 +16,9 @@ export function ExportButton() {
     setTimeout(() => {
       try {
         if (exportType === 'full') {
-          generatePrintableLedger(year);
+          generatePrintableLedger(startYear, numYears);
         } else {
-          generateQuickLedger(year, quickMonths);
+          generateQuickLedger(startYear, quickMonths);
         }
       } catch (error) {
         console.error('Error generating PDF:', error);
@@ -27,6 +28,11 @@ export function ExportButton() {
       setShowModal(false);
     }, 100);
   };
+
+  // Calculate estimated page count
+  const estimatedPages = exportType === 'full' 
+    ? 4 + (numYears * 39) // Title, TOC, Instructions, Quick Ref + 39 pages per year
+    : quickMonths * 2;
 
   return (
     <>
@@ -55,17 +61,38 @@ export function ExportButton() {
 
             <div className="space-y-4">
               {/* Year Selection */}
-              <div>
-                <label className="block text-sm font-semibold mb-1">Year:</label>
-                <input
-                  type="number"
-                  value={year}
-                  onChange={(e) => setYear(parseInt(e.target.value) || new Date().getFullYear())}
-                  className="ledger-input w-32"
-                  min="1800"
-                  max="2100"
-                />
+              <div className="flex gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Starting Year:</label>
+                  <input
+                    type="number"
+                    value={startYear}
+                    onChange={(e) => setStartYear(parseInt(e.target.value) || new Date().getFullYear())}
+                    className="ledger-input w-24"
+                    min="1800"
+                    max="2100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Number of Years:</label>
+                  <select
+                    value={numYears}
+                    onChange={(e) => setNumYears(parseInt(e.target.value))}
+                    className="ledger-input w-32"
+                  >
+                    <option value={1}>1 Year</option>
+                    <option value={2}>2 Years</option>
+                    <option value={3}>3 Years</option>
+                    <option value={4}>4 Years</option>
+                    <option value={5}>5 Years</option>
+                  </select>
+                </div>
               </div>
+              {numYears > 1 && (
+                <p className="text-xs text-gray-600 italic">
+                  Book will cover {startYear} through {startYear + numYears - 1}
+                </p>
+              )}
 
               {/* Export Type */}
               <div>
@@ -124,19 +151,32 @@ export function ExportButton() {
 
               {/* Contents Preview */}
               <div className="bg-ledger-aged p-3 border border-ledger-lines text-xs">
-                <strong>Book Contents ({exportType === 'full' ? '~43 pages' : `${quickMonths * 2} pages`}):</strong>
+                <strong>Book Contents (~{estimatedPages} pages):</strong>
                 {exportType === 'full' ? (
                   <ul className="mt-1 ml-4 list-disc">
                     <li>Decorative Title Page with Universal Rule</li>
                     <li>Table of Contents</li>
                     <li>Instructions for Use & Quick Reference Guide</li>
-                    <li>24 Monthly Synoptic Ledger Pages (Jan-Dec, 2 pages each)</li>
-                    <li>Purchase Day-Book (2 pages)</li>
-                    <li>Sales Day-Book (2 pages)</li>
-                    <li>Bills Receivable Register (2 pages)</li>
-                    <li>Bills Payable Register (2 pages)</li>
-                    <li>Time-Book & Payroll Sheets (4 pages)</li>
-                    <li>Closing Worksheets: Trial Balance, P&L, Balance Sheet</li>
+                    {numYears === 1 ? (
+                      <>
+                        <li>24 Monthly Synoptic Ledger Pages (Jan-Dec, 2 pages each)</li>
+                        <li>Purchase Day-Book (2 pages)</li>
+                        <li>Sales Day-Book (2 pages)</li>
+                        <li>Bills Receivable Register (2 pages)</li>
+                        <li>Bills Payable Register (2 pages)</li>
+                        <li>Time-Book & Payroll Sheets (4 pages)</li>
+                        <li>Closing Worksheets: Trial Balance, P&L, Balance Sheet</li>
+                      </>
+                    ) : (
+                      <>
+                        <li><strong>{numYears} Years of Ledger Pages ({startYear}–{startYear + numYears - 1}):</strong></li>
+                        <li className="ml-4">24 Monthly Synoptic Pages per year ({numYears * 24} pages total)</li>
+                        <li className="ml-4">Purchase & Sales Day-Books per year ({numYears * 4} pages)</li>
+                        <li className="ml-4">Bills Receivable & Payable per year ({numYears * 4} pages)</li>
+                        <li className="ml-4">Payroll Sheets per year ({numYears * 4} pages)</li>
+                        <li className="ml-4">Closing Worksheets per year ({numYears * 3} pages)</li>
+                      </>
+                    )}
                   </ul>
                 ) : (
                   <ul className="mt-1 ml-4 list-disc">

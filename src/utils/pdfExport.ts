@@ -75,170 +75,6 @@ function addRunningHeader(doc: jsPDF, leftText: string, rightText: string) {
 }
 
 // ============================================================================
-// TITLE PAGE
-// ============================================================================
-
-function addTitlePage(doc: jsPDF, year: number) {
-  // Decorative border
-  drawDecorativeBorder(doc, 15, 12, PAGE_WIDTH - 30, PAGE_HEIGHT - 24);
-  
-  // Ornamental top flourish
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.5);
-  const centerX = PAGE_WIDTH / 2;
-  doc.line(centerX - 60, 30, centerX + 60, 30);
-  doc.line(centerX - 50, 32, centerX + 50, 32);
-  doc.line(centerX - 40, 34, centerX + 40, 34);
-
-  // Main title
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(16);
-  doc.text("BAKER'S PATENT", centerX, 48, { align: 'center' });
-  
-  doc.setFontSize(28);
-  doc.text('LABOR-SAVING', centerX, 62, { align: 'center' });
-  
-  doc.setFontSize(36);
-  doc.text('SYNOPTIC', centerX, 80, { align: 'center' });
-  
-  doc.setFontSize(20);
-  doc.text('BOOK-KEEPING SYSTEM', centerX, 93, { align: 'center' });
-
-  // Decorative line under title
-  doc.setLineWidth(1);
-  doc.line(50, 100, PAGE_WIDTH - 50, 100);
-  doc.setLineWidth(0.3);
-  doc.line(60, 103, PAGE_WIDTH - 60, 103);
-
-  // Subtitle
-  doc.setFont('times', 'italic');
-  doc.setFontSize(12);
-  doc.text('A Combined Day-Book, Journal, Cash-Book, and Ledger', centerX, 115, { align: 'center' });
-  doc.text('Balanced Daily on a Single Page Without Re-Writing', centerX, 123, { align: 'center' });
-
-  // Year in decorative frame
-  doc.setLineWidth(0.5);
-  const yearBoxY = 135;
-  doc.rect(centerX - 35, yearBoxY, 70, 25);
-  doc.rect(centerX - 33, yearBoxY + 2, 66, 21);
-  
-  doc.setFont('times', 'bold');
-  doc.setFontSize(32);
-  doc.text(year.toString(), centerX, yearBoxY + 18, { align: 'center' });
-
-  // The Universal Rule box
-  const ruleY = 170;
-  setColor(doc, PAPER, 'fill');
-  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32, 'F');
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.4);
-  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32);
-  
-  setColor(doc, RED_INK, 'text');
-  doc.setFont('times', 'bold');
-  doc.setFontSize(11);
-  doc.text('THE UNIVERSAL RULE OF DOUBLE-ENTRY:', centerX, ruleY + 4, { align: 'center' });
-  
-  doc.setFont('times', 'bolditalic');
-  doc.setFontSize(13);
-  doc.text('"Credit that which FURNISHES the value,', centerX, ruleY + 14, { align: 'center' });
-  doc.text('Debit that which RECEIVES the value."', centerX, ruleY + 22, { align: 'center' });
-
-  // Footer
-  setColor(doc, INK, 'text');
-  doc.setFont('times', 'normal');
-  doc.setFontSize(8);
-  doc.text('Based on the system at issue in Baker v. Selden, 101 U.S. 99 (1879)', centerX, PAGE_HEIGHT - 20, { align: 'center' });
-  doc.setFont('times', 'italic');
-  doc.setFontSize(7);
-  doc.text('"The art of book-keeping cannot be the subject of copyright..."', centerX, PAGE_HEIGHT - 15, { align: 'center' });
-}
-
-// ============================================================================
-// TABLE OF CONTENTS
-// ============================================================================
-
-function addTableOfContents(doc: jsPDF, year: number) {
-  doc.addPage();
-  
-  const centerX = PAGE_WIDTH / 2;
-  setColor(doc, INK, 'text');
-  
-  // Title
-  doc.setFont('times', 'bold');
-  doc.setFontSize(18);
-  doc.text('TABLE OF CONTENTS', centerX, 25, { align: 'center' });
-  
-  setColor(doc, SEPIA, 'draw');
-  doc.setLineWidth(0.5);
-  doc.line(80, 29, PAGE_WIDTH - 80, 29);
-  
-  let y = 45;
-  const leftCol = 50;
-  const rightCol = PAGE_WIDTH - 50;
-  
-  const sections = [
-    { title: 'Instructions for Use', page: '3' },
-    { title: 'Quick Reference Guide', page: '4' },
-    { title: '', page: '' }, // spacer
-    { title: 'SYNOPTIC LEDGER PAGES', page: '', header: true },
-    ...MONTHS.map((m, i) => ({ title: `    ${m} ${year}`, page: `${5 + i * 2}-${6 + i * 2}` })),
-    { title: '', page: '' }, // spacer
-    { title: 'AUXILIARY BOOKS', page: '', header: true },
-    { title: '    Purchase Day-Book', page: '29-30' },
-    { title: '    Sales Day-Book', page: '31-32' },
-    { title: '    Bills Receivable Register', page: '33-34' },
-    { title: '    Bills Payable Register', page: '35-36' },
-    { title: '    Time-Book & Pay-Roll', page: '37-40' },
-    { title: '', page: '' }, // spacer
-    { title: 'CLOSING WORKSHEETS', page: '', header: true },
-    { title: '    Trial Balance Sheet', page: '41' },
-    { title: '    Profit & Loss Statement', page: '42' },
-    { title: '    Balance Sheet', page: '43' },
-  ];
-  
-  doc.setFontSize(10);
-  for (const section of sections) {
-    if (!section.title) {
-      y += 5;
-      continue;
-    }
-    
-    if (section.header) {
-      doc.setFont('times', 'bold');
-      setColor(doc, SEPIA, 'text');
-      doc.text(section.title, leftCol, y);
-      setColor(doc, INK, 'text');
-    } else {
-      doc.setFont('times', 'normal');
-      doc.text(section.title, leftCol, y);
-      if (section.page) {
-        // Dots
-        const titleWidth = doc.getTextWidth(section.title);
-        const pageWidth = doc.getTextWidth(section.page);
-        const dotsStart = leftCol + titleWidth + 2;
-        const dotsEnd = rightCol - pageWidth - 2;
-        let dotX = dotsStart;
-        while (dotX < dotsEnd) {
-          doc.text('.', dotX, y);
-          dotX += 2;
-        }
-        doc.text(section.page, rightCol, y, { align: 'right' });
-      }
-    }
-    y += 6;
-    
-    if (y > PAGE_HEIGHT - 25) {
-      doc.addPage();
-      y = 25;
-    }
-  }
-  
-  addPageNumber(doc, 2);
-}
-
-// ============================================================================
 // INSTRUCTIONS PAGE
 // ============================================================================
 
@@ -1256,18 +1092,54 @@ function drawAuxiliaryTable(doc: jsPDF, columns: ColDef[], startY: number, heade
 }
 
 // ============================================================================
+// YEAR DIVIDER PAGE
+// ============================================================================
+
+function addYearDividerPage(doc: jsPDF, year: number) {
+  doc.addPage();
+  
+  const centerX = PAGE_WIDTH / 2;
+  const centerY = PAGE_HEIGHT / 2;
+  
+  // Decorative border
+  drawDecorativeBorder(doc, 30, 30, PAGE_WIDTH - 60, PAGE_HEIGHT - 60);
+  
+  // Year
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(72);
+  doc.text(year.toString(), centerX, centerY - 10, { align: 'center' });
+  
+  // Underline
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(1);
+  doc.line(centerX - 50, centerY + 5, centerX + 50, centerY + 5);
+  doc.setLineWidth(0.3);
+  doc.line(centerX - 40, centerY + 8, centerX + 40, centerY + 8);
+  
+  // Subtitle
+  doc.setFont('times', 'italic');
+  doc.setFontSize(14);
+  setColor(doc, INK, 'text');
+  doc.text('Synoptic Ledger & Auxiliary Books', centerX, centerY + 25, { align: 'center' });
+}
+
+// ============================================================================
 // MAIN EXPORT FUNCTION
 // ============================================================================
 
-export function generatePrintableLedger(year: number): void {
+export function generatePrintableLedger(startYear: number, numYears: number = 1): void {
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
     format: 'letter',
   });
 
+  const endYear = startYear + numYears - 1;
+  const yearRange = numYears > 1 ? `${startYear}-${endYear}` : startYear.toString();
+
   doc.setDocumentProperties({
-    title: `Baker's Synoptic Ledger - ${year}`,
+    title: `Baker's Synoptic Ledger - ${yearRange}`,
     author: "Baker's Labor-Saving System",
     subject: 'Double-Entry Accounting Ledger',
     creator: 'Synoptic Ledger Application',
@@ -1275,11 +1147,11 @@ export function generatePrintableLedger(year: number): void {
 
   let pageNum = 1;
 
-  // Page 1: Title Page
-  addTitlePage(doc, year);
+  // Page 1: Title Page (use startYear for display, but show range if multi-year)
+  addTitlePageMultiYear(doc, startYear, numYears);
   
   // Page 2: Table of Contents
-  addTableOfContents(doc, year);
+  addTableOfContentsMultiYear(doc, startYear, numYears);
   
   // Page 3: Instructions
   addInstructionsPage(doc);
@@ -1289,58 +1161,270 @@ export function generatePrintableLedger(year: number): void {
   addQuickReferencePage(doc);
   pageNum = 4;
 
-  // Pages 5-28: Monthly Synoptic Ledger Pages (2 per month)
-  for (let m = 0; m < 12; m++) {
-    for (let p = 0; p < 2; p++) {
+  // Generate pages for each year
+  for (let yearOffset = 0; yearOffset < numYears; yearOffset++) {
+    const year = startYear + yearOffset;
+    
+    // Add year divider page if multi-year book
+    if (numYears > 1) {
+      addYearDividerPage(doc, year);
       pageNum++;
-      addSynopticLedgerPage(doc, MONTHS[m], year, pageNum, `${p + 1} of 2`);
     }
-  }
 
-  // Pages 29-30: Purchase Day-Book
-  pageNum++;
-  addPurchaseDayBook(doc, year, pageNum, false);
-  pageNum++;
-  addPurchaseDayBook(doc, year, pageNum, true);
+    // Monthly Synoptic Ledger Pages (2 per month)
+    for (let m = 0; m < 12; m++) {
+      for (let p = 0; p < 2; p++) {
+        pageNum++;
+        addSynopticLedgerPage(doc, MONTHS[m], year, pageNum, `${p + 1} of 2`);
+      }
+    }
 
-  // Pages 31-32: Sales Day-Book
-  pageNum++;
-  addSalesDayBook(doc, year, pageNum, false);
-  pageNum++;
-  addSalesDayBook(doc, year, pageNum, true);
-
-  // Pages 33-34: Bills Receivable
-  pageNum++;
-  addBillsReceivable(doc, year, pageNum, false);
-  pageNum++;
-  addBillsReceivable(doc, year, pageNum, true);
-
-  // Pages 35-36: Bills Payable
-  pageNum++;
-  addBillsPayable(doc, year, pageNum, false);
-  pageNum++;
-  addBillsPayable(doc, year, pageNum, true);
-
-  // Pages 37-40: Payroll
-  for (let i = 0; i < 4; i++) {
+    // Purchase Day-Book
     pageNum++;
-    addPayrollPage(doc, year, pageNum);
+    addPurchaseDayBook(doc, year, pageNum, false);
+    pageNum++;
+    addPurchaseDayBook(doc, year, pageNum, true);
+
+    // Sales Day-Book
+    pageNum++;
+    addSalesDayBook(doc, year, pageNum, false);
+    pageNum++;
+    addSalesDayBook(doc, year, pageNum, true);
+
+    // Bills Receivable
+    pageNum++;
+    addBillsReceivable(doc, year, pageNum, false);
+    pageNum++;
+    addBillsReceivable(doc, year, pageNum, true);
+
+    // Bills Payable
+    pageNum++;
+    addBillsPayable(doc, year, pageNum, false);
+    pageNum++;
+    addBillsPayable(doc, year, pageNum, true);
+
+    // Payroll (4 pages per year)
+    for (let i = 0; i < 4; i++) {
+      pageNum++;
+      addPayrollPage(doc, year, pageNum);
+    }
+
+    // Closing Worksheets
+    pageNum++;
+    addTrialBalanceSheet(doc, year, pageNum);
+    pageNum++;
+    addProfitLossStatement(doc, year, pageNum);
+    pageNum++;
+    addBalanceSheet(doc, year, pageNum);
   }
-
-  // Page 41: Trial Balance
-  pageNum++;
-  addTrialBalanceSheet(doc, year, pageNum);
-
-  // Page 42: Profit & Loss
-  pageNum++;
-  addProfitLossStatement(doc, year, pageNum);
-
-  // Page 43: Balance Sheet
-  pageNum++;
-  addBalanceSheet(doc, year, pageNum);
 
   // Save the PDF
-  doc.save(`Bakers_Synoptic_Ledger_${year}.pdf`);
+  const filename = numYears > 1 
+    ? `Bakers_Synoptic_Ledger_${startYear}-${endYear}.pdf`
+    : `Bakers_Synoptic_Ledger_${startYear}.pdf`;
+  doc.save(filename);
+}
+
+// ============================================================================
+// MULTI-YEAR TITLE PAGE
+// ============================================================================
+
+function addTitlePageMultiYear(doc: jsPDF, startYear: number, numYears: number) {
+  const endYear = startYear + numYears - 1;
+  
+  // Decorative border
+  drawDecorativeBorder(doc, 15, 12, PAGE_WIDTH - 30, PAGE_HEIGHT - 24);
+  
+  // Ornamental top flourish
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.5);
+  const centerX = PAGE_WIDTH / 2;
+  doc.line(centerX - 60, 30, centerX + 60, 30);
+  doc.line(centerX - 50, 32, centerX + 50, 32);
+  doc.line(centerX - 40, 34, centerX + 40, 34);
+
+  // Main title
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(16);
+  doc.text("BAKER'S PATENT", centerX, 48, { align: 'center' });
+  
+  doc.setFontSize(28);
+  doc.text('LABOR-SAVING', centerX, 62, { align: 'center' });
+  
+  doc.setFontSize(36);
+  doc.text('SYNOPTIC', centerX, 80, { align: 'center' });
+  
+  doc.setFontSize(20);
+  doc.text('BOOK-KEEPING SYSTEM', centerX, 93, { align: 'center' });
+
+  // Decorative line under title
+  doc.setLineWidth(1);
+  doc.line(50, 100, PAGE_WIDTH - 50, 100);
+  doc.setLineWidth(0.3);
+  doc.line(60, 103, PAGE_WIDTH - 60, 103);
+
+  // Subtitle
+  doc.setFont('times', 'italic');
+  doc.setFontSize(12);
+  doc.text('A Combined Day-Book, Journal, Cash-Book, and Ledger', centerX, 115, { align: 'center' });
+  doc.text('Balanced Daily on a Single Page Without Re-Writing', centerX, 123, { align: 'center' });
+
+  // Year(s) in decorative frame
+  doc.setLineWidth(0.5);
+  const yearBoxY = 132;
+  const yearBoxWidth = numYears > 1 ? 100 : 70;
+  doc.rect(centerX - yearBoxWidth/2, yearBoxY, yearBoxWidth, 28);
+  doc.rect(centerX - yearBoxWidth/2 + 2, yearBoxY + 2, yearBoxWidth - 4, 24);
+  
+  doc.setFont('times', 'bold');
+  if (numYears > 1) {
+    doc.setFontSize(28);
+    doc.text(`${startYear}–${endYear}`, centerX, yearBoxY + 18, { align: 'center' });
+  } else {
+    doc.setFontSize(32);
+    doc.text(startYear.toString(), centerX, yearBoxY + 19, { align: 'center' });
+  }
+
+  // The Universal Rule box
+  const ruleY = 168;
+  setColor(doc, PAPER, 'fill');
+  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32, 'F');
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.4);
+  doc.rect(35, ruleY - 5, PAGE_WIDTH - 70, 32);
+  
+  setColor(doc, RED_INK, 'text');
+  doc.setFont('times', 'bold');
+  doc.setFontSize(11);
+  doc.text('THE UNIVERSAL RULE OF DOUBLE-ENTRY:', centerX, ruleY + 4, { align: 'center' });
+  
+  doc.setFont('times', 'bolditalic');
+  doc.setFontSize(13);
+  doc.text('"Credit that which FURNISHES the value,', centerX, ruleY + 14, { align: 'center' });
+  doc.text('Debit that which RECEIVES the value."', centerX, ruleY + 22, { align: 'center' });
+
+  // Footer
+  setColor(doc, INK, 'text');
+  doc.setFont('times', 'normal');
+  doc.setFontSize(8);
+  doc.text('Based on the system at issue in Baker v. Selden, 101 U.S. 99 (1879)', centerX, PAGE_HEIGHT - 20, { align: 'center' });
+  doc.setFont('times', 'italic');
+  doc.setFontSize(7);
+  doc.text('"The art of book-keeping cannot be the subject of copyright..."', centerX, PAGE_HEIGHT - 15, { align: 'center' });
+}
+
+// ============================================================================
+// MULTI-YEAR TABLE OF CONTENTS
+// ============================================================================
+
+function addTableOfContentsMultiYear(doc: jsPDF, startYear: number, numYears: number) {
+  doc.addPage();
+  
+  const centerX = PAGE_WIDTH / 2;
+  setColor(doc, INK, 'text');
+  
+  // Title
+  doc.setFont('times', 'bold');
+  doc.setFontSize(18);
+  doc.text('TABLE OF CONTENTS', centerX, 20, { align: 'center' });
+  
+  setColor(doc, SEPIA, 'draw');
+  doc.setLineWidth(0.5);
+  doc.line(80, 24, PAGE_WIDTH - 80, 24);
+  
+  let y = 35;
+  const leftCol = 40;
+  const rightCol = PAGE_WIDTH - 40;
+  
+  // Front matter
+  const frontMatter = [
+    { title: 'Instructions for Use', page: '3' },
+    { title: 'Quick Reference Guide', page: '4' },
+  ];
+  
+  doc.setFontSize(9);
+  for (const item of frontMatter) {
+    doc.setFont('times', 'normal');
+    doc.text(item.title, leftCol, y);
+    const titleWidth = doc.getTextWidth(item.title);
+    const pageWidth = doc.getTextWidth(item.page);
+    let dotX = leftCol + titleWidth + 2;
+    const dotsEnd = rightCol - pageWidth - 2;
+    while (dotX < dotsEnd) {
+      doc.text('.', dotX, y);
+      dotX += 2;
+    }
+    doc.text(item.page, rightCol, y, { align: 'right' });
+    y += 5;
+  }
+  
+  y += 5;
+  
+  // Calculate page numbers
+  let currentPage = 4; // After instructions and quick ref
+  
+  for (let yearOffset = 0; yearOffset < numYears; yearOffset++) {
+    const year = startYear + yearOffset;
+    
+    // Year header
+    doc.setFont('times', 'bold');
+    doc.setFontSize(11);
+    setColor(doc, SEPIA, 'text');
+    doc.text(`━━━ ${year} ━━━`, centerX, y, { align: 'center' });
+    y += 6;
+    
+    setColor(doc, INK, 'text');
+    doc.setFontSize(9);
+    
+    if (numYears > 1) {
+      currentPage++; // Year divider page
+    }
+    
+    const yearSections = [
+      { title: '    Synoptic Ledger (January–June)', pages: 12 },
+      { title: '    Synoptic Ledger (July–December)', pages: 12 },
+      { title: '    Purchase Day-Book', pages: 2 },
+      { title: '    Sales Day-Book', pages: 2 },
+      { title: '    Bills Receivable Register', pages: 2 },
+      { title: '    Bills Payable Register', pages: 2 },
+      { title: '    Time-Book & Pay-Roll', pages: 4 },
+      { title: '    Trial Balance', pages: 1 },
+      { title: '    Profit & Loss Statement', pages: 1 },
+      { title: '    Balance Sheet', pages: 1 },
+    ];
+    
+    for (const section of yearSections) {
+      doc.setFont('times', 'normal');
+      const startPage = currentPage + 1;
+      const endPage = currentPage + section.pages;
+      const pageStr = section.pages === 1 ? `${startPage}` : `${startPage}–${endPage}`;
+      
+      doc.text(section.title, leftCol, y);
+      const titleWidth = doc.getTextWidth(section.title);
+      const pageWidth = doc.getTextWidth(pageStr);
+      let dotX = leftCol + titleWidth + 2;
+      const dotsEnd = rightCol - pageWidth - 2;
+      while (dotX < dotsEnd) {
+        doc.text('.', dotX, y);
+        dotX += 2;
+      }
+      doc.text(pageStr, rightCol, y, { align: 'right' });
+      
+      currentPage += section.pages;
+      y += 4.5;
+    }
+    
+    y += 4;
+    
+    // Check if we need a new page
+    if (y > PAGE_HEIGHT - 30 && yearOffset < numYears - 1) {
+      doc.addPage();
+      y = 25;
+    }
+  }
+  
+  addPageNumber(doc, 2);
 }
 
 export function generateQuickLedger(year: number, months: number = 1): void {
