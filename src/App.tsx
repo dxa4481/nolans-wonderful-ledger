@@ -7,6 +7,7 @@ import { PayrollModule } from './components/PayrollModule';
 import { PurchaseSalesModule } from './components/PurchaseSalesModule';
 import { BillsModule } from './components/BillsModule';
 import { ClosingModule } from './components/ClosingModule';
+import { ExportButton } from './components/ExportButton';
 import type { ViewMode } from './types/accounting';
 
 function App() {
@@ -72,6 +73,7 @@ function App() {
                 <option value="banker">Banker's Option</option>
               </select>
             </label>
+            <ExportButton />
           </div>
         </div>
 
